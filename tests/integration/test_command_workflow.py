@@ -8,6 +8,7 @@ import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -112,10 +113,7 @@ def test_command_nonzero_exit_is_execution_failure(tmp_path: Path) -> None:
 
 
 def test_command_policy_violation_is_distinct(tmp_path: Path) -> None:
-    policy = ExecutionPolicy(
-        network_profile="N1",
-        allowed_network_profiles=frozenset({"N0", "N1"}),
-    )
+    policy = ExecutionPolicy(network_profile="N1")
 
     outcome = run_command_task(
         EXAMPLE_TASK_PATH,
@@ -128,6 +126,9 @@ def test_command_policy_violation_is_distinct(tmp_path: Path) -> None:
     assert outcome.run.status is RunStatus.POLICY_VIOLATION
     assert outcome.runtime_result is not None
     assert outcome.runtime_result.status is RuntimeStatus.POLICY_VIOLATION
+    assert "requires at least one allowlist entry" in (
+        outcome.runtime_result.detail or ""
+    )
     assert outcome.run.failure_detail is not None
     assert outcome.run.failure_detail["runtime_status"] == "policy_violation"
 
@@ -152,6 +153,57 @@ def test_command_network_is_blocked_offline(tmp_path: Path) -> None:
     store = RunStore(tmp_path)
     trace = json.loads(store.read_artifact("run-command-network", "runtime_trace.json"))
     assert "Network is unreachable" in trace["stderr"]
+
+
+def test_command_n1_allowlist_permits_listed_host(
+    tmp_path: Path, http_endpoint: str
+) -> None:
+    port = urlsplit(http_endpoint).port
+    assert port is not None
+    code = (
+        "import http.client; "
+        "connection = http.client.HTTPConnection('127.0.0.1', 3128, timeout=2); "
+        f"connection.request('GET', {http_endpoint!r}); "
+        "response = connection.getresponse(); "
+        "open('greeting.txt', 'wb').write(response.read())"
+    )
+    outcome = run_command_task(
+        EXAMPLE_TASK_PATH,
+        ["python", "-c", code],
+        runs_root=tmp_path,
+        run_id="run-command-n1",
+        policy=ExecutionPolicy(
+            network_profile="N1",
+            network_allowlist=(f"127.0.0.1:{port}",),
+            timeout_seconds=5,
+        ),
+    )
+
+    assert outcome.run.status is RunStatus.SUCCESS
+    assert outcome.runtime_result is not None
+    assert outcome.runtime_result.status is RuntimeStatus.COMPLETED
+    assert outcome.run.condition_manifest.network["profile"] == "N1"
+    assert outcome.run.condition_manifest.network["egress"] == "allowlist"
+    assert outcome.run.condition_manifest.network["mechanism"] == (
+        "network_namespace+unix_proxy"
+    )
+    assert outcome.run.condition_manifest.network["allowlist"] == [
+        f"127.0.0.1:{port}"
+    ]
+    assert outcome.run.condition_manifest.network["monitoring"] == "proxy_events"
+
+    store = RunStore(tmp_path)
+    trace = json.loads(store.read_artifact("run-command-n1", "runtime_trace.json"))
+    assert trace["policy"]["network_profile"] == "N1"
+    assert trace["policy"]["network_egress"] == "allowlist"
+    assert trace["network_events"] == [
+        {
+            "method": "GET",
+            "host": "127.0.0.1",
+            "port": port,
+            "allowed": True,
+        }
+    ]
 
 
 def test_command_n2_profile_uses_host_network(

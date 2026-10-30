@@ -17,8 +17,8 @@ This release covers the P1–P3 roadmap slices:
 - independent file verification and a synthetic verifier-calibration pack;
 - matched-comparison and ablation analysis with repeated runs and Wilson intervals;
 - a bubblewrap-backed isolated runtime with resource limits, N0 network
-  isolation, N2 host-network policy, trace capture, workspace reset, and
-  cleanup.
+  isolation, N1 allowlist egress, N2 host-network policy, trace capture,
+  workspace reset, and cleanup.
 
 The example pack contains two synthetic tasks: `echo` and `nested-write`.
 The `echo` experiment compares a baseline harness with an
@@ -37,13 +37,16 @@ harnessbench run-experiment benchmarks/examples/echo/experiment.json
 harnessbench show-experiment experiment-echo-newline
 harnessbench run-command benchmarks/examples/echo/task.json \
   --command "sh -c \"printf 'hello harnessbench\\n' > greeting.txt\""
+harnessbench run-command benchmarks/examples/echo/task.json \
+  --network-profile N1 --allow-host 127.0.0.1:8000 \
+  --command "python3 -c '...'"
 harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
-At release preparation: 123 tests passed, lint passed, documentation checks
+At release preparation: 139 tests passed, lint passed, documentation checks
 passed, the CLI smoke path produced a persisted `success` run plus a matched
-ablation report, the isolated command path produced verified runs with N0 and
-N2 network policies, the synthetic calibration pack reported zero false
+ablation report, the isolated command path produced verified runs with N0, N1,
+and N2 network policies, the synthetic calibration pack reported zero false
 acceptances/rejections, and the live-model path was exercised against a local
 mock chat-completions server.
 
@@ -55,6 +58,7 @@ mock chat-completions server.
 | Schema and adapter contracts tested | Met | `tests/contract/`, `tests/unit/test_file_action_harness.py` |
 | Verifier calibration harness | Met for synthetic pack | `benchmarks/examples/verifier-calibration/`, `tests/unit/test_verifier_calibration.py` |
 | Small/older and stronger model evaluation when accessible | Not performed | Adapter exists, but no provider credentials are configured; only recorded responses and a local mock server were used |
+| Network policy enforcement | Met for N0/N1/N2; N2 monitoring open | `tests/integration/test_isolated_runtime.py`, `tests/unit/test_egress_proxy.py` |
 | Results include provenance and verifier version | Met | Run condition manifests and `tests/reproducibility/test_experiment_replay.py` |
 | Known limitations published | Met | This report |
 
@@ -69,9 +73,11 @@ harness effectiveness, or leaderboard ranking.
 - The file-action harness runs in-process. The command harness runs inside the
   isolated runtime, but neither the recorded-response nor live-model
   file-action path is sandboxed.
-- N0 offline and N2 host-network policies are implemented. N1 controlled egress
-  is not; it fails closed at policy construction or with `policy_violation` when
-  explicitly allowed. N2 provides open host-network access without monitoring.
+- N0, N1, and N2 policies are implemented. N1 supports proxy-aware HTTP
+  requests and CONNECT tunnels to allowlisted host/port endpoints; it does not
+  provide transparent interception, protocol filtering, TLS inspection, or
+  wildcard hosts. N1 records host/port decisions, not request paths or payloads.
+  N2 provides open host-network access without packet-level monitoring.
 - The example pack is synthetic and tiny; it is not representative of coding,
   cybersecurity, or multilingual benchmark coverage.
 - Verifier calibration against adjudicated real-task cases is not established;
@@ -90,6 +96,6 @@ harness effectiveness, or leaderboard ranking.
 ## Release gate
 
 This report closes the fixture-baseline scope only. P0 review sign-off,
-real-model evaluation, representative task packs, calibration against
-adjudicated verifier cases, and empirical calibration remain open before
-claiming a general benchmark release.
+real-model evaluation, N2 monitoring, representative task packs, calibration
+against adjudicated verifier cases, and empirical calibration remain open
+before claiming a general benchmark release.

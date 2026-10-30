@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -108,19 +109,25 @@ def test_setup_failure_when_workspace_is_missing() -> None:
     assert result.exit_code is None
 
 
-def test_unsupported_network_policy_is_a_policy_violation() -> None:
-    policy = ExecutionPolicy(
-        network_profile="N1",
-        allowed_network_profiles=frozenset({"N0", "N1"}),
-    )
+def test_allowlist_requires_n1_profile() -> None:
+    with pytest.raises(ValueError, match="only valid for the N1 profile"):
+        ExecutionPolicy(
+            network_profile="N2",
+            network_allowlist=("example.com",),
+        )
+
+
+def test_n1_without_allowlist_is_a_policy_violation() -> None:
+    policy = ExecutionPolicy(network_profile="N1", timeout_seconds=5)
     with IsolatedRuntime(policy) as runtime:
         runtime.prepare()
 
         result = runtime.execute(["sh", "-c", "true"])
 
         assert result.status is RuntimeStatus.POLICY_VIOLATION
-        assert "N1 controlled egress" in (result.detail or "")
-        assert result.policy["network_egress"] == "unsupported"
+        assert "requires at least one allowlist entry" in (result.detail or "")
+        assert result.policy["network_egress"] == "allowlist"
+        assert result.network_events == ()
 
 
 def test_network_is_blocked_offline() -> None:
@@ -157,9 +164,80 @@ def test_n2_profile_uses_host_network(http_endpoint: str) -> None:
         assert result.policy["network_mechanism"] == "host_network_namespace"
 
 
-def test_n1_is_rejected_by_default() -> None:
-    with pytest.raises(ValueError, match="network profile N1 is not allowed"):
-        ExecutionPolicy(network_profile="N1")
+def _proxy_get_code(url: str) -> str:
+    return (
+        "import http.client; "
+        "connection = http.client.HTTPConnection('127.0.0.1', 3128, timeout=2); "
+        f"connection.request('GET', {url!r}); "
+        "response = connection.getresponse(); "
+        "print(response.status); "
+        "print(response.read().decode(), end='')"
+    )
+
+
+def test_n1_allowlist_permits_listed_host(http_endpoint: str) -> None:
+    port = urlsplit(http_endpoint).port
+    assert port is not None
+    policy = ExecutionPolicy(
+        network_profile="N1",
+        network_allowlist=(f"127.0.0.1:{port}",),
+        timeout_seconds=5,
+    )
+    with IsolatedRuntime(policy) as runtime:
+        runtime.prepare()
+
+        result = runtime.execute(["python", "-c", _proxy_get_code(http_endpoint)])
+
+        assert result.status is RuntimeStatus.COMPLETED
+        assert result.stdout == "200\nn2-ok"
+        assert result.policy["network_mechanism"] == "network_namespace+unix_proxy"
+        assert result.network_events == (
+            {
+                "method": "GET",
+                "host": "127.0.0.1",
+                "port": port,
+                "allowed": True,
+            },
+        )
+
+
+def test_n1_blocks_direct_host_network(http_endpoint: str) -> None:
+    port = urlsplit(http_endpoint).port
+    assert port is not None
+    policy = ExecutionPolicy(
+        network_profile="N1",
+        network_allowlist=(f"127.0.0.1:{port}",),
+        timeout_seconds=5,
+    )
+    code = (
+        "import socket; "
+        f"socket.create_connection(('127.0.0.1', {port}), timeout=1)"
+    )
+    with IsolatedRuntime(policy) as runtime:
+        runtime.prepare()
+
+        result = runtime.execute(["python", "-c", code])
+
+        assert result.status is RuntimeStatus.EXECUTION_FAILED
+        assert "Connection refused" in result.stderr
+        assert result.network_events == ()
+
+
+def test_n1_allowlist_denies_unlisted_host(http_endpoint: str) -> None:
+    policy = ExecutionPolicy(
+        network_profile="N1",
+        network_allowlist=("example.com",),
+        timeout_seconds=5,
+    )
+    with IsolatedRuntime(policy) as runtime:
+        runtime.prepare()
+
+        result = runtime.execute(["python", "-c", _proxy_get_code(http_endpoint)])
+
+        assert result.status is RuntimeStatus.COMPLETED
+        assert result.stdout == "403\nForbidden"
+        assert result.network_events[0]["allowed"] is False
+        assert "allowlist" in (result.network_events[0].get("reason") or "")
 
 
 def test_trace_includes_policy_limits() -> None:

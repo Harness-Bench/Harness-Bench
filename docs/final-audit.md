@@ -25,7 +25,7 @@ Audit scope: repository foundation and specification consistency, not runtime co
 
 - Validate run records against the run schema at the persistence boundary.
 - Route the file-action baseline through the isolated runtime and add secret redaction.
-- Implement N1 controlled egress and N2 packet-level monitoring; N0 and N2 host-network policies are implemented and tested.
+- Add N2 packet-level monitoring; N0, N1 allowlist egress, and N2 host-network policies are implemented and tested.
 - Add representative task packs and golden evidence fixtures, including multilingual pairs.
 - Evaluate at least one small/older and one stronger model with configured provider credentials.
 - Calibrate the verifier against adjudicated real-task cases.
@@ -40,12 +40,12 @@ The P1 vertical slice and P2 matched-comparison baseline were implemented after 
 - recorded baseline model adapter, file-action harness with a mechanism toggle, and independent file verifier;
 - persisted run records/artifacts and CLI `validate-task`, `run-task`, `show-run`, `run-experiment`, and `show-experiment`;
 - matched-condition checks, repeated runs, Wilson uncertainty intervals, and separate quality/cost reporting;
-- a bubblewrap-backed isolated runtime with workspace reset, resource limits, N0 network isolation, N2 host-network policy, trace capture, and cleanup;
+- a bubblewrap-backed isolated runtime with workspace reset, resource limits, N0 isolation, N1 allowlist egress, N2 host-network policy, trace capture, and cleanup;
 - an isolated command harness that persists runtime traces and artifact evidence;
 - an OpenAI-compatible model adapter and `run-model-task` path with mock-server tests;
 - a synthetic verifier-calibration pack with false-accept/reject metrics.
 
-These do not change the release gate: routing agent execution through the isolated runtime, representative task packs, verifier validation, and empirical calibration remain open.
+These do not change the release gate: routing agent execution through the isolated runtime, N2 monitoring, representative task packs, verifier validation, and empirical calibration remain open.
 
 ## Consistency checks
 

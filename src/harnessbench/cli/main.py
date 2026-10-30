@@ -96,7 +96,15 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument(
         "--network-profile",
         default="N0",
-        help="network policy: N0 offline or N2 host network; N1 is rejected",
+        help="network policy: N0 offline, N1 allowlist, or N2 host network",
+    )
+    command.add_argument(
+        "--allow-host",
+        dest="allow_hosts",
+        action="append",
+        default=[],
+        metavar="HOST[:PORT]",
+        help="N1 allowlist entry; repeat for multiple hosts",
     )
 
     model_task = commands.add_parser(
@@ -352,6 +360,7 @@ def _run_command(args: argparse.Namespace) -> int:
             timeout_seconds=args.timeout,
             memory_mb=args.memory_mb,
             network_profile=args.network_profile,
+            network_allowlist=tuple(args.allow_hosts),
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

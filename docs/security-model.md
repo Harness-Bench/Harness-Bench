@@ -40,15 +40,21 @@ header, and does not persist it in the run record or model-response artifacts.
 The endpoint is reached from the host process; model output is treated as
 untrusted and parsed before file actions are applied.
 
+N1 uses a private network namespace and an exact host/port allowlist enforced
+by a host-side HTTP(S) proxy. The sandbox reaches the proxy through a read-only
+Unix socket and a loopback bridge. Direct host-network access is unavailable.
+Allowed and denied host/port decisions are recorded in the runtime trace without
+request paths or payloads.
+
 Current limits:
 
 - N0 uses a private network namespace with no egress; N2 shares the host network
   namespace and therefore provides open egress without packet-level monitoring;
-- N1 controlled egress is not implemented. The default policy rejects N1 at
-  construction, and a policy that explicitly allows N1 returns
-  `policy_violation` rather than running without an allowlist;
+- N1 requires at least one allowlist entry and fails closed otherwise. It
+  supports proxy-aware HTTP requests and CONNECT tunnels to allowlisted
+  host/port endpoints, but does not provide transparent interception, protocol
+  filtering, TLS inspection, or wildcard hosts;
 - the command harness routes execution through this runtime; the
   recorded-response and live-model file-action paths remain in-process;
-- routing the file-action paths through the runtime, N1 allowlisting, N2
-  monitoring, general secret redaction, and separate verifier access remain
-  open.
+- routing the file-action paths through the runtime, N2 monitoring, general
+  secret redaction, and separate verifier access remain open.

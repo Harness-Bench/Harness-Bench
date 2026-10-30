@@ -15,6 +15,12 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Self
 
+from harnessbench.runtime.network import (
+    BRIDGE_PORT,
+    ControlledEgressProxy,
+    normalize_allowlist,
+)
+
 
 class RuntimeStatus(StrEnum):
     """Outcome of one runtime execution."""
@@ -32,7 +38,17 @@ class RuntimeSetupError(Exception):
     """The runtime workspace or initial state could not be prepared."""
 
 
-SUPPORTED_NETWORK_PROFILES = frozenset({"N0", "N2"})
+SUPPORTED_NETWORK_PROFILES = frozenset({"N0", "N1", "N2"})
+
+_PROXY_WRAPPER = (
+    "python3 /egress/bridge.py /egress/proxy.sock 127.0.0.1 "
+    f"{BRIDGE_PORT} /tmp/.harnessbench-proxy-ready & "
+    "attempts=0; "
+    "while [ ! -e /tmp/.harnessbench-proxy-ready ] && [ $attempts -lt 500 ]; do "
+    "attempts=$((attempts+1)); sleep 0.01; done; "
+    "[ -e /tmp/.harnessbench-proxy-ready ] || exit 1; "
+    'exec "$@"'
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,8 +61,9 @@ class ExecutionPolicy:
     max_processes: int = 2048
     max_file_size_mb: int = 16
     network_profile: str = "N0"
+    network_allowlist: tuple[str, ...] = ()
     allowed_network_profiles: frozenset[str] = field(
-        default_factory=lambda: frozenset({"N0", "N2"})
+        default_factory=lambda: frozenset({"N0", "N1", "N2"})
     )
     max_output_chars: int = 100_000
 
@@ -61,6 +78,9 @@ class ExecutionPolicy:
                 f"network profile {self.network_profile} is not allowed; "
                 f"allowed: {sorted(self.allowed_network_profiles)}"
             )
+        if self.network_allowlist and self.network_profile != "N1":
+            raise ValueError("network_allowlist is only valid for the N1 profile")
+        normalize_allowlist(self.network_allowlist)
 
     @property
     def network_supported(self) -> bool:
@@ -70,6 +90,8 @@ class ExecutionPolicy:
     def network_egress(self) -> str:
         if self.network_profile == "N0":
             return "blocked"
+        if self.network_profile == "N1":
+            return "allowlist"
         if self.network_profile == "N2":
             return "host_network"
         return "unsupported"
@@ -78,6 +100,8 @@ class ExecutionPolicy:
     def network_mechanism(self) -> str:
         if self.network_profile == "N0":
             return "network_namespace"
+        if self.network_profile == "N1":
+            return "network_namespace+unix_proxy"
         if self.network_profile == "N2":
             return "host_network_namespace"
         return "none"
@@ -91,6 +115,7 @@ class ExecutionPolicy:
             "max_processes": self.max_processes,
             "max_file_size_mb": self.max_file_size_mb,
             "network_profile": self.network_profile,
+            "network_allowlist": sorted(self.network_allowlist),
             "allowed_network_profiles": sorted(self.allowed_network_profiles),
             "network_egress": self.network_egress,
             "network_mechanism": self.network_mechanism,
@@ -110,6 +135,7 @@ class RuntimeResult:
     stderr: str
     network_profile: str
     policy: Mapping[str, Any] = field(default_factory=dict)
+    network_events: tuple[Mapping[str, Any], ...] = ()
     detail: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -122,6 +148,7 @@ class RuntimeResult:
             "stderr": self.stderr,
             "network_profile": self.network_profile,
             "policy": dict(self.policy),
+            "network_events": [dict(event) for event in self.network_events],
         }
         if self.detail is not None:
             data["detail"] = self.detail
@@ -232,6 +259,8 @@ class IsolatedRuntime:
         workspace: Path,
         policy: ExecutionPolicy,
         command: Sequence[str],
+        *,
+        proxy: ControlledEgressProxy | None = None,
     ) -> list[str]:
         args = [
             bwrap,
@@ -284,8 +313,21 @@ class IsolatedRuntime:
             "LANG",
             "C.UTF-8",
         ]
-        if policy.network_profile == "N0":
+        if policy.network_profile in {"N0", "N1"}:
             args.append("--unshare-net")
+        if policy.network_profile == "N1":
+            if proxy is None:
+                raise ValueError("N1 requires a controlled egress proxy")
+            args.extend(["--ro-bind", str(proxy.directory), "/egress"])
+            proxy_url = f"http://127.0.0.1:{BRIDGE_PORT}"
+            for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+                args.extend(["--setenv", name, proxy_url])
+            for name in ("http_proxy", "https_proxy", "all_proxy"):
+                args.extend(["--setenv", name, proxy_url])
+            for name in ("NO_PROXY", "no_proxy"):
+                args.extend(["--setenv", name, ""])
+            args.extend(["--", "/bin/sh", "-c", _PROXY_WRAPPER, "sh", *command])
+            return args
         args.append("--")
         args.extend(command)
         return args
@@ -304,10 +346,14 @@ class IsolatedRuntime:
                 RuntimeStatus.POLICY_VIOLATION,
                 command_tuple,
                 active,
-                detail=(
-                    f"runtime does not support network profile {active.network_profile}; "
-                    "N1 controlled egress requires an allowlist mechanism"
-                ),
+                detail=f"runtime does not support network profile {active.network_profile}",
+            )
+        if active.network_profile == "N1" and not active.network_allowlist:
+            return self._result(
+                RuntimeStatus.POLICY_VIOLATION,
+                command_tuple,
+                active,
+                detail="N1 controlled egress requires at least one allowlist entry",
             )
         if self.workspace is None or not self.workspace.is_dir():
             return self._result(
@@ -325,56 +371,85 @@ class IsolatedRuntime:
                 detail="bubblewrap (bwrap) is not installed",
             )
 
-        started = perf_counter()
-        try:
-            process = subprocess.Popen(
-                self._bwrap_command(bwrap, self.workspace, active, command_tuple),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-                # Single-threaded CLI; limits must be set before exec.
-                preexec_fn=_resource_limiter(active),  # noqa: PLW1509
-                env={},
-            )
-        except OSError as exc:
-            return self._result(
-                RuntimeStatus.SETUP_FAILED,
-                command_tuple,
-                active,
-                detail=f"cannot start runtime: {exc}",
-            )
-
-        timed_out = False
-        try:
-            stdout_bytes, stderr_bytes = process.communicate(timeout=active.timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
+        proxy: ControlledEgressProxy | None = None
+        if active.network_profile == "N1":
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            stdout_bytes, stderr_bytes = process.communicate()
+                proxy = ControlledEgressProxy(active.network_allowlist)
+                proxy.start()
+            except (OSError, ValueError) as exc:
+                if proxy is not None:
+                    proxy.stop()
+                return self._result(
+                    RuntimeStatus.POLICY_VIOLATION,
+                    command_tuple,
+                    active,
+                    detail=f"cannot start N1 egress proxy: {exc}",
+                )
 
-        duration_ms = round((perf_counter() - started) * 1000, 3)
-        stdout = _decode(stdout_bytes, active.max_output_chars)
-        stderr = _decode(stderr_bytes, active.max_output_chars)
-        status, detail = self._classify(
-            process.returncode,
-            timed_out=timed_out,
-            stderr=stderr,
-        )
-        return RuntimeResult(
-            status=status,
-            command=command_tuple,
-            exit_code=process.returncode,
-            duration_ms=duration_ms,
-            stdout=stdout,
-            stderr=stderr,
-            network_profile=active.network_profile,
-            policy=active.to_dict(),
-            detail=detail,
-        )
+        try:
+            started = perf_counter()
+            try:
+                process = subprocess.Popen(
+                    self._bwrap_command(
+                        bwrap,
+                        self.workspace,
+                        active,
+                        command_tuple,
+                        proxy=proxy,
+                    ),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True,
+                    # Single-threaded CLI; limits must be set before exec.
+                    preexec_fn=_resource_limiter(active),  # noqa: PLW1509
+                    env={},
+                )
+            except OSError as exc:
+                return self._result(
+                    RuntimeStatus.SETUP_FAILED,
+                    command_tuple,
+                    active,
+                    detail=f"cannot start runtime: {exc}",
+                    network_events=proxy.events if proxy is not None else (),
+                )
+
+            timed_out = False
+            try:
+                stdout_bytes, stderr_bytes = process.communicate(
+                    timeout=active.timeout_seconds
+                )
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                stdout_bytes, stderr_bytes = process.communicate()
+
+            duration_ms = round((perf_counter() - started) * 1000, 3)
+            stdout = _decode(stdout_bytes, active.max_output_chars)
+            stderr = _decode(stderr_bytes, active.max_output_chars)
+            status, detail = self._classify(
+                process.returncode,
+                timed_out=timed_out,
+                stderr=stderr,
+            )
+            return RuntimeResult(
+                status=status,
+                command=command_tuple,
+                exit_code=process.returncode,
+                duration_ms=duration_ms,
+                stdout=stdout,
+                stderr=stderr,
+                network_profile=active.network_profile,
+                policy=active.to_dict(),
+                network_events=proxy.events if proxy is not None else (),
+                detail=detail,
+            )
+        finally:
+            if proxy is not None:
+                proxy.stop()
 
     def _classify(
         self, returncode: int, *, timed_out: bool, stderr: str
@@ -400,6 +475,7 @@ class IsolatedRuntime:
         policy: ExecutionPolicy,
         *,
         detail: str,
+        network_events: tuple[Mapping[str, Any], ...] = (),
     ) -> RuntimeResult:
         return RuntimeResult(
             status=status,
@@ -410,5 +486,6 @@ class IsolatedRuntime:
             stderr="",
             network_profile=policy.network_profile,
             policy=policy.to_dict(),
+            network_events=network_events,
             detail=detail,
         )

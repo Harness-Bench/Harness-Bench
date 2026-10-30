@@ -21,3 +21,5 @@ Terminal statuses must distinguish setup failure, execution failure, timeout, re
 ## Isolation
 
 Untrusted code and agents never execute directly on the host. Enforce least privilege and network egress at runtime, redact secrets before persistence, cap CPU/memory/disk/process/time, and test cleanup and reset behavior independently.
+
+Record the network profile, enforcement mechanism, and allowlist with the run. For N1, proxy allow/deny decisions are part of the runtime trace; host names and ports are sufficient, and request paths or payloads should not be persisted.

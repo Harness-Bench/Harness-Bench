@@ -66,9 +66,12 @@ def _build_manifest(
             "profile": policy.network_profile,
             "egress": policy.network_egress,
             "mechanism": policy.network_mechanism,
-            "monitoring": (
-                "not_applicable" if policy.network_profile == "N0" else "none"
-            ),
+            "allowlist": sorted(policy.network_allowlist),
+            "monitoring": {
+                "N0": "not_applicable",
+                "N1": "proxy_events",
+                "N2": "none",
+            }.get(policy.network_profile, "none"),
         },
         budgets={
             "wall_seconds": policy.timeout_seconds,

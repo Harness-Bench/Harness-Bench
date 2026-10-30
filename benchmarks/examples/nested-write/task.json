@@ -1,0 +1,63 @@
+{
+  "schema_version": "0.1.0",
+  "task_id": "example.nested-write.v1",
+  "title": "Write a nested result file",
+  "task_level": "B0",
+  "environment_level": "E0",
+  "network_profile": "N0",
+  "instructions": "Create out/result.txt containing exactly: ok\n",
+  "initial_state": {
+    "workspace": "empty"
+  },
+  "budgets": {
+    "wall_seconds": 30
+  },
+  "success_criteria": [
+    {
+      "criterion_id": "file_exists",
+      "kind": "file_exists",
+      "path": "out/result.txt"
+    },
+    {
+      "criterion_id": "content_matches",
+      "kind": "content_equals",
+      "path": "out/result.txt",
+      "expected": "ok\n"
+    }
+  ],
+  "verifier": {
+    "kind": "file_checks",
+    "version": "0.1.0"
+  },
+  "tags": [
+    "example",
+    "filesystem",
+    "nested"
+  ],
+  "domains": [
+    "D1"
+  ],
+  "language_profile": {
+    "natural_languages": [
+      "en"
+    ],
+    "programming_languages": [],
+    "artifact_languages": [
+      "text"
+    ],
+    "mixed_language": false,
+    "transformation_path": [
+      "direct"
+    ],
+    "source_language": "en",
+    "target_language": "en"
+  },
+  "provenance": {
+    "source": "harnessbench example",
+    "license": "MIT",
+    "created_at": "2026-10-30",
+    "reviewed_at": null,
+    "split": "public_dev"
+  },
+  "risk_level": "low"
+}

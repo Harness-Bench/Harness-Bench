@@ -41,7 +41,7 @@ The P1 vertical slice and P2 matched-comparison baseline were implemented after 
 - matched-condition checks, repeated runs, Wilson uncertainty intervals, and separate quality/cost reporting;
 - a bubblewrap-backed isolated runtime with workspace reset, resource limits, N0 network enforcement, trace capture, and cleanup.
 
-These do not change the release gate: isolation, representative task packs, verifier validation, and empirical calibration remain open.
+These do not change the release gate: routing agent execution through the isolated runtime, representative task packs, verifier validation, and empirical calibration remain open.
 
 ## Consistency checks
 
@@ -56,4 +56,4 @@ These do not change the release gate: isolation, representative task packs, veri
 
 ## Release gate
 
-Do not call the foundation implementation-complete until P0 specification review is signed off and P1 vertical slice passes contract/integration tests. This ZIP is a specification/repository scaffold; it does not claim those runtime gates have passed.
+The P1–P3 fixture baseline passes contract, unit, integration, and reproducibility tests, and the v0.1 fixture-baseline release report is published. Do not call this a general benchmark release until P0 review sign-off, real-model evaluation, runtime-routed execution, representative task packs, verifier validation, and empirical calibration are complete. See `release-report.md`.

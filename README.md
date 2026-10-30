@@ -16,6 +16,7 @@ HarnessBench is a local-first evaluation framework for measuring model–harness
 - `docs/validity-and-contamination.md` — benchmark validity and contamination limits.
 - `docs/final-audit.md` — audit decisions, addressed gaps, remaining implementation gates.
 - `docs/roadmap.md` — P0–P4 milestones and exit gates.
+- `docs/release-report.md` — v0.1 fixture-baseline scope, evidence, and limitations.
 
 The repository is a **foundation with P1/P2/P3 vertical slices**, not a complete benchmark. Do not infer broad implementation, benchmark coverage, or test success beyond the recorded checks.
 
@@ -73,6 +74,7 @@ harness integrations, and end-to-end sandboxed execution are not implemented.
 - `docs/experimental-design.md` — fair comparison and mechanism analysis.
 - `docs/security-model.md` — runtime isolation and threat boundaries.
 - `docs/roadmap.md` — milestones and acceptance criteria.
+- `docs/release-report.md` — v0.1 scope, evidence, and published limitations.
 - `docs/decisions/` — durable architecture decisions.
 - `schemas/` — machine-readable contract drafts.
 - `benchmarks/` — benchmark and task definitions.
@@ -81,7 +83,11 @@ harness integrations, and end-to-end sandboxed execution are not implemented.
 
 ## Status
 
-The repository includes **P1 vertical-slice**, **P2 matched-comparison**, and **P3 isolated-runtime** baselines: task validation, recorded baseline execution, independent file verification, persisted run records and artifacts, two harness configurations with a mechanism toggle, repeated runs, matched-condition checks, uncertainty intervals, quality/cost reports, and a bubblewrap-backed runtime with resource/network limits. The runtime is not yet wired into the baseline workflow. It is not a broad benchmark; interfaces and schemas remain drafts until validated at later milestones.
+The repository has a **v0.1 fixture-baseline release**: P1/P2/P3 slices plus a
+second example task and reproducibility checks. See
+[`docs/release-report.md`](docs/release-report.md) for evidence and limitations.
+This is not a real-model benchmark result; the real-model and calibration gates
+remain open.
 
 ## Start here
 

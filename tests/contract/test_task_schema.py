@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,6 +35,15 @@ def test_task_schema_is_valid() -> None:
 
 def test_example_task_passes_task_schema() -> None:
     assert errors_for(load_json(VALID_TASK_PATH)) == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted((ROOT / "benchmarks" / "examples").glob("*/task.json")),
+    ids=lambda path: path.parent.name,
+)
+def test_every_example_task_passes_schema(path: Path) -> None:
+    assert errors_for(load_json(path)) == []
 
 
 def test_missing_required_field_is_rejected() -> None:

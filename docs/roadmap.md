@@ -51,6 +51,8 @@
 
 ## P4 — Validation and v0.1 release
 
+**Status:** fixture-baseline scope complete; the real-model and calibration gates remain open. See `release-report.md`.
+
 **Deliver:** contract/integration/reproducibility tests, example benchmark pack, documented limitations, release report.
 
 **Exit criteria:**

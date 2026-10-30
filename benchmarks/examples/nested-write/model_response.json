@@ -1,0 +1,9 @@
+{
+  "actions": [
+    {
+      "type": "write_file",
+      "path": "out/result.txt",
+      "content": "ok\n"
+    }
+  ]
+}

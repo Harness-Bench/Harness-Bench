@@ -12,5 +12,6 @@
 - [Documentation Alongside Code](documentation.md)
 - [Security Model](security-model.md)
 - [Roadmap](roadmap.md)
+- [v0.1 Release Report](release-report.md)
 - [Foundation Final Audit](final-audit.md)
 - [Decisions](decisions/index.md)

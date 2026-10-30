@@ -13,6 +13,8 @@ from harnessbench.verification.verifier import VerificationStatus
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
 EXAMPLE_RESPONSE_PATH = ROOT / "benchmarks" / "examples" / "echo" / "model_response.json"
+NESTED_TASK_PATH = ROOT / "benchmarks" / "examples" / "nested-write" / "task.json"
+NESTED_RESPONSE_PATH = ROOT / "benchmarks" / "examples" / "nested-write" / "model_response.json"
 
 
 def write_response(path: Path, actions: object) -> Path:
@@ -131,3 +133,17 @@ def test_report_can_be_reloaded_from_storage(tmp_path: Path) -> None:
     assert run == outcome.run
     assert verification is not None
     assert verification["status"] == "passed"
+
+
+def test_nested_example_task_runs_and_verifies(tmp_path: Path) -> None:
+    outcome = run_task(
+        NESTED_TASK_PATH,
+        NESTED_RESPONSE_PATH,
+        runs_root=tmp_path,
+        run_id="run-nested",
+    )
+
+    assert outcome.run.status is RunStatus.SUCCESS
+    assert outcome.verification is not None
+    assert outcome.verification.status is VerificationStatus.PASSED
+    assert "out/result.txt" in outcome.run.artifact_refs

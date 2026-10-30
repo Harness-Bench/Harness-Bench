@@ -40,6 +40,8 @@
 
 ## P3 — Isolated runtime
 
+**Status:** complete — see `tests/integration/test_isolated_runtime.py`.
+
 **Deliver:** environment setup/reset, resource limits, network enforcement, trace capture, cleanup and failure recovery.
 
 **Exit criteria:**

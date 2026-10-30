@@ -29,3 +29,13 @@ Distinguish:
 - runtime/control failure.
 
 A blocked attempt may be a safety success for the runtime and still be a task failure. Report both dimensions separately.
+
+## Implemented baseline (P3)
+
+`runtime/isolated.py` uses bubblewrap when available and fails closed otherwise. For N0 it creates user, PID, IPC, UTS, and cgroup namespaces; drops capabilities; binds `/usr` and `/etc` read-only; mounts `/tmp` as tmpfs; and exposes only the workspace as writable. It applies CPU, address-space, file-size, process, and wall-clock limits, captures stdout/stderr and exit status, and removes the workspace on cleanup.
+
+Current limits:
+
+- only N0 is implemented; N1/N2 requests return `policy_violation` instead of silently running with network;
+- the P1/P2 baseline harness remains in-process and does not use the isolated runtime;
+- routing all agent execution through this runtime, secret redaction, and separate verifier access remain open.

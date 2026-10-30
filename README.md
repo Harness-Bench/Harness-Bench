@@ -17,7 +17,7 @@ HarnessBench is a local-first evaluation framework for measuring model–harness
 - `docs/final-audit.md` — audit decisions, addressed gaps, remaining implementation gates.
 - `docs/roadmap.md` — P0–P4 milestones and exit gates.
 
-The repository is a **foundation with P1/P2 vertical slices**, not a complete benchmark. Do not infer broad implementation, benchmark coverage, or test success beyond the recorded checks.
+The repository is a **foundation with P1/P2/P3 vertical slices**, not a complete benchmark. Do not infer broad implementation, benchmark coverage, or test success beyond the recorded checks.
 
 ## v0.1 workflow
 
@@ -41,8 +41,10 @@ harnessbench show-experiment experiment-echo-newline
 ```
 
 The baseline uses an in-process file-action harness and is not an isolation
-boundary. Real model providers, real harness integrations, and sandboxed
-execution are not implemented yet.
+boundary. A separate bubblewrap-backed runtime implements workspace reset,
+resource limits, offline network enforcement, trace capture, and cleanup; the
+baseline workflow does not route through it yet. Real model providers, real
+harness integrations, and end-to-end sandboxed execution are not implemented.
 
 ## What it evaluates
 
@@ -79,7 +81,7 @@ execution are not implemented yet.
 
 ## Status
 
-The repository includes **P1 vertical-slice** and **P2 matched-comparison** baselines: task validation, recorded baseline execution, independent file verification, persisted run records and artifacts, two harness configurations with a mechanism toggle, repeated runs, matched-condition checks, uncertainty intervals, and quality/cost reports. It is not an isolated benchmark runtime or a broad benchmark; interfaces and schemas remain drafts until validated at later milestones.
+The repository includes **P1 vertical-slice**, **P2 matched-comparison**, and **P3 isolated-runtime** baselines: task validation, recorded baseline execution, independent file verification, persisted run records and artifacts, two harness configurations with a mechanism toggle, repeated runs, matched-condition checks, uncertainty intervals, quality/cost reports, and a bubblewrap-backed runtime with resource/network limits. The runtime is not yet wired into the baseline workflow. It is not a broad benchmark; interfaces and schemas remain drafts until validated at later milestones.
 
 ## Start here
 

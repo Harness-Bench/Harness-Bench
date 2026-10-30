@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from harnessbench.adapters.harnesses.base import HarnessError, HarnessResult
 from harnessbench.adapters.models.base import ModelResponse
+
+SUPPORTED_MECHANISMS = frozenset({"append_trailing_newline"})
 
 
 class FileActionHarness:
@@ -15,9 +18,28 @@ class FileActionHarness:
 
     The action plan is validated before any file is written. Paths must stay
     inside the workspace, so the harness cannot edit the host or run record.
+    Optional mechanisms transform content before writing; unknown mechanisms
+    fail closed instead of being silently ignored.
     """
 
-    version = "0.1.0"
+    version = "0.2.0"
+
+    def __init__(self, mechanisms: Mapping[str, Any] | None = None) -> None:
+        if mechanisms is not None and not isinstance(mechanisms, Mapping):
+            raise HarnessError("harness mechanisms must be an object")
+        self.mechanisms = dict(mechanisms or {})
+        unknown = set(self.mechanisms) - SUPPORTED_MECHANISMS
+        if unknown:
+            names = ", ".join(sorted(unknown))
+            raise HarnessError(f"unsupported harness mechanisms: {names}")
+        append = self.mechanisms.get("append_trailing_newline", False)
+        if not isinstance(append, bool):
+            raise HarnessError("append_trailing_newline must be a boolean")
+
+    def _transform(self, content: str) -> str:
+        if self.mechanisms.get("append_trailing_newline") and not content.endswith("\n"):
+            return content + "\n"
+        return content
 
     def run(self, response: ModelResponse, workspace: str | Path) -> HarnessResult:
         """Validate and apply the response's file actions."""
@@ -53,7 +75,9 @@ class FileActionHarness:
             path = (root / raw_path).resolve()
             if not path.is_relative_to(root):
                 raise HarnessError(f"action {index} path escapes the workspace")
-            planned.append((path, content, path.relative_to(root).as_posix()))
+            planned.append(
+                (path, self._transform(content), path.relative_to(root).as_posix())
+            )
 
         for path, content, _ in planned:
             try:
@@ -64,3 +88,4 @@ class FileActionHarness:
 
         applied = tuple(relative for _, _, relative in planned)
         return HarnessResult(actions_applied=applied, detail=f"applied {len(applied)} file actions")
+

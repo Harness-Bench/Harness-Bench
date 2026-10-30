@@ -7,6 +7,7 @@ import tempfile
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from harnessbench.adapters.harnesses.base import HarnessError
 from harnessbench.adapters.harnesses.file_actions import FileActionHarness
 from harnessbench.adapters.models.base import ModelAdapterError
 from harnessbench.adapters.models.fixture import FixtureModelAdapter
+from harnessbench.domain.experiment import Condition
 from harnessbench.domain.run import ConditionManifest, Run, RunStatus
 from harnessbench.domain.task import Task
 from harnessbench.registry.loader import load_task
@@ -51,7 +53,11 @@ def _wall_seconds(task: Task) -> float:
     return 30.0
 
 
-def _build_manifest(task: Task, response_path: Path) -> ConditionManifest:
+def _build_manifest(
+    task: Task, response_path: Path, condition: Condition | None = None
+) -> ConditionManifest:
+    if condition is not None:
+        return condition.to_manifest()
     return ConditionManifest(
         model={
             "provider": "fixture",
@@ -80,10 +86,13 @@ def _save_status(
     status: RunStatus,
     *,
     timestamp_key: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> Run:
     timestamps = dict(run.timestamps)
     if timestamp_key is not None:
         timestamps[timestamp_key] = _utc_now()
+    if extra is not None:
+        timestamps.update(extra)
     updated = replace(run, status=status, timestamps=timestamps)
     store.save_run(updated)
     return updated
@@ -109,12 +118,14 @@ def run_task(
     runs_root: str | Path = DEFAULT_RUNS_ROOT,
     run_id: str | None = None,
     experiment_id: str = DEFAULT_EXPERIMENT_ID,
+    condition: Condition | None = None,
 ) -> RunTaskOutcome:
     """Execute one task with the baseline adapters and persist the result."""
     task = load_task(task_path)
     response_path = Path(response_path)
     store = RunStore(runs_root)
     run_id = run_id or f"run-{uuid4().hex}"
+    mechanisms = condition.harness.get("mechanisms") if condition is not None else None
 
     run = Run(
         schema_version=SCHEMA_VERSION,
@@ -122,7 +133,7 @@ def run_task(
         experiment_id=experiment_id,
         task_id=task.task_id,
         status=RunStatus.PLANNED,
-        condition_manifest=_build_manifest(task, response_path),
+        condition_manifest=_build_manifest(task, response_path, condition),
         timestamps={"created_at": _utc_now()},
     )
     store.save_run(run)
@@ -146,8 +157,9 @@ def run_task(
 
             run = _save_status(store, run, RunStatus.RUNNING, timestamp_key="running_at")
 
+            started = perf_counter()
             try:
-                FileActionHarness().run(response, workspace)
+                FileActionHarness(mechanisms=mechanisms).run(response, workspace)
             except HarnessError as exc:
                 run = _finish(
                     store,
@@ -156,6 +168,7 @@ def run_task(
                     detail={"stage": "harness_adapter", "message": str(exc)},
                 )
                 return RunTaskOutcome(run, None)
+            duration_ms = round((perf_counter() - started) * 1000, 3)
 
             try:
                 for path in sorted(workspace.rglob("*")):
@@ -176,6 +189,7 @@ def run_task(
                 run,
                 RunStatus.COLLECTED,
                 timestamp_key="collected_at",
+                extra={"harness_duration_ms": duration_ms},
             )
             run = replace(run, artifact_refs=store.list_artifacts(run_id))
             store.save_run(run)

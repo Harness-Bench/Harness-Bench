@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harnessbench.local/schemas/task.schema.json",
+  "title": "HarnessBench Task",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "title",
+    "task_level",
+    "environment_level",
+    "instructions",
+    "success_criteria",
+    "domains",
+    "language_profile",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_level": {
+      "enum": [
+        "B0",
+        "B1",
+        "B2",
+        "B3",
+        "B4"
+      ]
+    },
+    "environment_level": {
+      "enum": [
+        "E0",
+        "E1",
+        "E2",
+        "E3"
+      ]
+    },
+    "network_profile": {
+      "enum": [
+        "N0",
+        "N1",
+        "N2"
+      ]
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "initial_state": {
+      "type": "object"
+    },
+    "budgets": {
+      "type": "object"
+    },
+    "success_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "verifier": {
+      "type": "object"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^D([1-9]|1[0-3])$"
+      }
+    },
+    "language_profile": {
+      "type": "object",
+      "required": [
+        "natural_languages",
+        "programming_languages",
+        "artifact_languages",
+        "transformation_path"
+      ],
+      "properties": {
+        "natural_languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "programming_languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifact_languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mixed_language": {
+          "type": "boolean"
+        },
+        "transformation_path": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "direct",
+              "translate",
+              "summarize",
+              "compress",
+              "decompose",
+              "handoff",
+              "translate_verify",
+              "translate_verify_recover"
+            ]
+          }
+        },
+        "source_language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "source",
+        "split"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "split": {
+          "enum": [
+            "public_dev",
+            "held_out",
+            "private_eval"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk_level": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "critical_invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "invariant_id",
+          "kind",
+          "expected"
+        ],
+        "properties": {
+          "invariant_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "expected": {},
+          "critical": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

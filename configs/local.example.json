@@ -1,0 +1,11 @@
+{
+  "profile_id": "local-example",
+  "network_profile": "N0",
+  "runtime": {
+    "backend": "unset",
+    "timeout_seconds": 300,
+    "cpu_limit": null,
+    "memory_limit_mb": null
+  },
+  "notes": "Illustrative only. A backend and enforceable limits must be configured before running untrusted tasks."
+}

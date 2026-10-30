@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harnessbench.local/schemas/run.schema.json",
+  "title": "HarnessBench Run Record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "experiment_id",
+    "task_id",
+    "status",
+    "condition_manifest",
+    "timestamps"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "experiment_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "planned",
+        "prepared",
+        "running",
+        "collected",
+        "verified",
+        "analyzed",
+        "setup_failed",
+        "execution_failed",
+        "timed_out",
+        "policy_violation",
+        "verifier_failed",
+        "task_failed",
+        "invalid",
+        "resource_limited",
+        "adapter_failed",
+        "partial_success",
+        "success",
+        "collected_invalid",
+        "verifier_invalid"
+      ]
+    },
+    "condition_manifest": {
+      "type": "object",
+      "required": [
+        "model",
+        "harness",
+        "runtime",
+        "environment",
+        "network",
+        "budgets"
+      ],
+      "properties": {
+        "model": {
+          "type": "object"
+        },
+        "harness": {
+          "type": "object"
+        },
+        "runtime": {
+          "type": "object"
+        },
+        "environment": {
+          "type": "object"
+        },
+        "network": {
+          "type": "object"
+        },
+        "budgets": {
+          "type": "object"
+        },
+        "language_profile": {
+          "type": "object"
+        },
+        "verifier_version": {
+          "type": "string"
+        },
+        "analysis_version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "timestamps": {
+      "type": "object"
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verification_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "failure_detail": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

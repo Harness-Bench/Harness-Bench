@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harnessbench.local/schemas/experiment.schema.json",
+  "title": "HarnessBench Experiment (draft)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "purpose",
+    "task_refs",
+    "conditions",
+    "repetitions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "experiment_id": {
+      "type": "string"
+    },
+    "purpose": {
+      "enum": [
+        "comparison",
+        "ablation",
+        "interaction",
+        "model_harness_interaction",
+        "environment_transfer"
+      ]
+    },
+    "task_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "repetitions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "analysis_plan": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

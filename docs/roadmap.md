@@ -16,6 +16,8 @@
 
 ## P1 — Minimal vertical slice
 
+**Status:** complete — see `tests/integration/test_run_workflow.py` and `tests/integration/test_cli_run.py`.
+
 **Deliver:** one task definition, one baseline adapter, one executable harness adapter, one verifier, persisted Run and artifacts, CLI path to a result.
 
 **Exit criteria:**

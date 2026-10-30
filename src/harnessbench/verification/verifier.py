@@ -106,6 +106,14 @@ class FileVerifier:
             self._check(criterion, index, root)
             for index, criterion in enumerate(task.success_criteria)
         )
+        if not checks:
+            return VerificationResult(
+                status=VerificationStatus.INVALID,
+                verifier_version=self.version,
+                checks=(),
+                evidence_refs=(),
+                detail="task has no success criteria",
+            )
         evidence_refs = tuple(
             dict.fromkeys(
                 check.evidence_ref for check in checks if check.evidence_ref is not None

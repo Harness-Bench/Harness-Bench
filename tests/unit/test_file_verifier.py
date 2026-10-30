@@ -110,6 +110,13 @@ def test_invalid_when_workspace_is_missing(tmp_path: Path) -> None:
     assert "workspace does not exist" in (result.detail or "")
 
 
+def test_invalid_when_task_has_no_criteria(tmp_path: Path) -> None:
+    result = FileVerifier().verify(task(()), tmp_path)
+
+    assert result.status is VerificationStatus.INVALID
+    assert result.detail == "task has no success criteria"
+
+
 def test_result_maps_to_distinct_run_statuses(tmp_path: Path) -> None:
     verifier = FileVerifier()
     passed = verifier.verify(

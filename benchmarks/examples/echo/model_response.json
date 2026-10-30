@@ -1,0 +1,9 @@
+{
+  "actions": [
+    {
+      "type": "write_file",
+      "path": "greeting.txt",
+      "content": "hello harnessbench\n"
+    }
+  ]
+}

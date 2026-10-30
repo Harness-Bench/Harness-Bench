@@ -17,7 +17,7 @@ HarnessBench is a local-first evaluation framework for measuring model–harness
 - `docs/final-audit.md` — audit decisions, addressed gaps, remaining implementation gates.
 - `docs/roadmap.md` — P0–P4 milestones and exit gates.
 
-The repository is a **foundation scaffold**, not a working benchmark runner yet. Do not infer implementation or test success from the presence of skeleton modules.
+The repository is a **foundation with a minimal P1 vertical slice**, not a complete benchmark. Do not infer broad implementation, benchmark coverage, or test success beyond the recorded checks.
 
 ## v0.1 workflow
 
@@ -25,13 +25,21 @@ The repository is a **foundation scaffold**, not a working benchmark runner yet.
 
 ## Current vertical slice
 
-Task loading and schema validation are implemented. Validate the example task:
+Task loading, schema validation, baseline execution, file verification, run
+persistence, and report display are implemented.
 
 ```bash
 harnessbench validate-task benchmarks/examples/echo/task.json
+
+harnessbench run-task benchmarks/examples/echo/task.json \
+  --model-response benchmarks/examples/echo/model_response.json
+
+harnessbench show-run <run_id>
 ```
 
-Execution, verification, and reporting are not implemented yet.
+The baseline uses an in-process file-action harness and is not an isolation
+boundary. Real model providers, real harness integrations, and sandboxed
+execution are not implemented yet.
 
 ## What it evaluates
 
@@ -68,7 +76,7 @@ Execution, verification, and reporting are not implemented yet.
 
 ## Status
 
-This archive is a **repository foundation**, not a working benchmark implementation. Interfaces and schemas are initial drafts; validate them before treating them as stable contracts.
+The repository includes a **P1 vertical-slice baseline**: task validation, a recorded baseline model adapter, an in-process file-action harness, independent file verification, persisted run records and artifacts, and CLI report display. It is not an isolated benchmark runtime or a broad benchmark; interfaces and schemas remain drafts until validated at later milestones.
 
 ## Start here
 

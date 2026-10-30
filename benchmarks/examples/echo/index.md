@@ -5,3 +5,4 @@ Minimal filesystem task for the first vertical slice. The agent must create
 by the agent's report.
 
 - `task.json`: task definition validated against `schemas/task.schema.json`.
+- `model_response.json`: recorded baseline response with one `write_file` action.

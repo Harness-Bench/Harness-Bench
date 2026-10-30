@@ -27,7 +27,7 @@ Audit scope: repository foundation and specification consistency, not runtime co
 - Route the file-action baseline through the isolated runtime and add secret redaction.
 - Implement N1/N2 network profiles and test them independently.
 - Add representative task packs and golden evidence fixtures, including multilingual pairs.
-- Validate verifier calibration, false acceptance/rejection, and known failure modes.
+- Calibrate the verifier against adjudicated real-task cases.
 - Establish empirically calibrated difficulty and a held-out evaluation lifecycle.
 
 ## Post-audit implementation status
@@ -40,7 +40,8 @@ The P1 vertical slice and P2 matched-comparison baseline were implemented after 
 - persisted run records/artifacts and CLI `validate-task`, `run-task`, `show-run`, `run-experiment`, and `show-experiment`;
 - matched-condition checks, repeated runs, Wilson uncertainty intervals, and separate quality/cost reporting;
 - a bubblewrap-backed isolated runtime with workspace reset, resource limits, N0 network enforcement, trace capture, and cleanup;
-- an isolated command harness that persists runtime traces and artifact evidence.
+- an isolated command harness that persists runtime traces and artifact evidence;
+- a synthetic verifier-calibration pack with false-accept/reject metrics.
 
 These do not change the release gate: routing agent execution through the isolated runtime, representative task packs, verifier validation, and empirical calibration remain open.
 
@@ -57,4 +58,4 @@ These do not change the release gate: routing agent execution through the isolat
 
 ## Release gate
 
-The P1–P3 fixture baseline passes contract, unit, integration, and reproducibility tests, and the v0.1 fixture-baseline release report is published. Do not call this a general benchmark release until P0 review sign-off, real-model evaluation, runtime-routed file-action execution, representative task packs, verifier validation, and empirical calibration are complete. See `release-report.md`.
+The P1–P3 fixture baseline passes contract, unit, integration, and reproducibility tests, and the v0.1 fixture-baseline release report is published. Do not call this a general benchmark release until P0 review sign-off, real-model evaluation, runtime-routed file-action execution, representative task packs, adjudicated verifier calibration, and empirical calibration are complete. See `release-report.md`.

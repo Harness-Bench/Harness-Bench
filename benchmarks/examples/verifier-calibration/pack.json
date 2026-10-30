@@ -1,0 +1,83 @@
+{
+  "schema_version": "0.1.0",
+  "pack_id": "file-verifier-basic",
+  "cases": [
+    {
+      "case_id": "exact-match",
+      "expected": "passed",
+      "criteria": [
+        {
+          "criterion_id": "file_exists",
+          "kind": "file_exists",
+          "path": "greeting.txt"
+        },
+        {
+          "criterion_id": "content_matches",
+          "kind": "content_equals",
+          "path": "greeting.txt",
+          "expected": "hello harnessbench\n"
+        }
+      ],
+      "files": {
+        "greeting.txt": "hello harnessbench\n"
+      }
+    },
+    {
+      "case_id": "missing-file",
+      "expected": "failed",
+      "criteria": [
+        {
+          "criterion_id": "file_exists",
+          "kind": "file_exists",
+          "path": "greeting.txt"
+        }
+      ],
+      "files": {}
+    },
+    {
+      "case_id": "wrong-content",
+      "expected": "failed",
+      "criteria": [
+        {
+          "criterion_id": "content_matches",
+          "kind": "content_equals",
+          "path": "greeting.txt",
+          "expected": "hello harnessbench\n"
+        }
+      ],
+      "files": {
+        "greeting.txt": "wrong\n"
+      }
+    },
+    {
+      "case_id": "unknown-criterion",
+      "expected": "invalid",
+      "criteria": [
+        {
+          "criterion_id": "unknown",
+          "kind": "unsupported_kind",
+          "path": "greeting.txt"
+        }
+      ],
+      "files": {}
+    },
+    {
+      "case_id": "empty-criteria",
+      "expected": "invalid",
+      "criteria": [],
+      "files": {}
+    },
+    {
+      "case_id": "path-escape",
+      "expected": "invalid",
+      "criteria": [
+        {
+          "criterion_id": "escape",
+          "kind": "file_exists",
+          "path": "../outside.txt"
+        }
+      ],
+      "files": {}
+    }
+  ]
+}

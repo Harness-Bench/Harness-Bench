@@ -42,6 +42,8 @@ harnessbench show-experiment experiment-echo-newline
 
 harnessbench run-command benchmarks/examples/echo/task.json \
   --command "sh -c \"printf 'hello harnessbench\\n' > greeting.txt\""
+
+harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
 The file-action baseline runs in-process and is not an isolation boundary.

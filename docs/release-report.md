@@ -13,7 +13,7 @@ This release covers the P1–P3 roadmap slices:
 - run lifecycle, condition manifests, and persisted run/artifact records;
 - a recorded baseline model adapter and executable file-action harness;
 - an isolated command harness with runtime trace persistence;
-- independent file verification;
+- independent file verification and a synthetic verifier-calibration pack;
 - matched-comparison and ablation analysis with repeated runs and Wilson intervals;
 - a bubblewrap-backed isolated runtime with resource limits, N0 network
   enforcement, trace capture, workspace reset, and cleanup.
@@ -35,12 +35,14 @@ harnessbench run-experiment benchmarks/examples/echo/experiment.json
 harnessbench show-experiment experiment-echo-newline
 harnessbench run-command benchmarks/examples/echo/task.json \
   --command "sh -c \"printf 'hello harnessbench\\n' > greeting.txt\""
+harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
-At release preparation: 103 tests passed, lint passed, documentation checks
+At release preparation: 110 tests passed, lint passed, documentation checks
 passed, the CLI smoke path produced a persisted `success` run plus a matched
-ablation report, and the isolated command path produced a verified run with a
-runtime trace.
+ablation report, the isolated command path produced a verified run with a
+runtime trace, and the synthetic calibration pack reported zero false
+acceptances/rejections.
 
 ## P4 exit criteria
 
@@ -48,6 +50,7 @@ runtime trace.
 | --- | --- | --- |
 | End-to-end workflow passes | Met for fixture baseline | `tests/integration/test_cli_run.py`, `test_experiment_workflow.py`, `test_command_workflow.py` |
 | Schema and adapter contracts tested | Met | `tests/contract/`, `tests/unit/test_file_action_harness.py` |
+| Verifier calibration harness | Met for synthetic pack | `benchmarks/examples/verifier-calibration/`, `tests/unit/test_verifier_calibration.py` |
 | Small/older and stronger model evaluation when accessible | Not performed | No model providers configured; recorded fixture responses only |
 | Results include provenance and verifier version | Met | Run condition manifests and `tests/reproducibility/test_experiment_replay.py` |
 | Known limitations published | Met | This report |
@@ -64,8 +67,8 @@ harness effectiveness, or leaderboard ranking.
   with `policy_violation`.
 - The example pack is synthetic and tiny; it is not representative of coding,
   cybersecurity, or multilingual benchmark coverage.
-- Verifier calibration, false acceptance/rejection rates, and adversarial
-  verifier tests are not established.
+- Verifier calibration against adjudicated real-task cases is not established;
+  the included calibration pack is synthetic.
 - Task difficulty is not empirically calibrated; there is no held-out set.
 - Multilingual and semantic-integrity tasks are not included.
 - Storage uses filesystem records, not SQLite; retention and garbage collection
@@ -78,5 +81,6 @@ harness effectiveness, or leaderboard ranking.
 ## Release gate
 
 This report closes the fixture-baseline scope only. P0 review sign-off,
-real-model evaluation, representative task packs, verifier validation, and
-empirical calibration remain open before claiming a general benchmark release.
+real-model evaluation, representative task packs, calibration against
+adjudicated verifier cases, and empirical calibration remain open before
+claiming a general benchmark release.

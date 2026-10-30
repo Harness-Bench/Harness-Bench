@@ -60,6 +60,22 @@ Record separately: (1) natural-language input/output languages, (2) programming 
 
 Include small/older and stronger models when available. Record exact model/revision, runtime/provider, inference parameters, context limits, quantization/offload where relevant, and budget. Report model-only baseline, harness outcome, and the delta; do not attribute a gain to the harness when model, budget, tools, or environment also changed.
 
+## Verifier calibration
+
+Labeled calibration cases declare an expected verifier status (`passed`,
+`failed`, or `invalid`) for a set of criteria and workspace files. Running the
+verifier over those cases yields:
+
+- **true accept:** expected pass, actual pass;
+- **false rejection:** expected pass, actual fail;
+- **true reject:** expected fail, actual fail;
+- **false acceptance:** expected fail, actual pass;
+- **unexpected invalid:** expected pass or fail, actual invalid.
+
+Report accuracy, false-acceptance rate, false-rejection rate, and unexpected
+invalid counts separately. A synthetic calibration pack can test verifier
+mechanics but is not a substitute for adjudicated cases from real tasks.
+
 ## Outcome dimensions
 
 Report independently:

@@ -30,6 +30,12 @@ from harnessbench.registry.experiment_loader import ExperimentLoadError
 from harnessbench.registry.loader import TaskLoadError, load_task
 from harnessbench.runtime.isolated import ExecutionPolicy
 from harnessbench.storage.store import StorageError
+from harnessbench.verification.calibration import (
+    CalibrationError,
+    CalibrationReport,
+    evaluate_calibration,
+)
+from harnessbench.verification.calibration_loader import load_calibration_pack
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,6 +99,13 @@ def build_parser() -> argparse.ArgumentParser:
     show_experiment.add_argument("experiment_id")
     show_experiment.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     show_experiment.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    calibrate = commands.add_parser(
+        "calibrate-verifier",
+        help="evaluate verifier error rates against a labeled case pack",
+    )
+    calibrate.add_argument("pack", type=Path, help="path to a calibration pack JSON file")
+    calibrate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     return parser
 
 
@@ -234,6 +247,50 @@ def _print_experiment(analysis: dict[str, Any]) -> None:
         )
 
 
+def _print_calibration(report: CalibrationReport) -> None:
+    metrics = report.metrics
+    print(f"Verifier calibration {report.pack_id}")
+    print(
+        f"Cases: {metrics.get('cases')}, correct: {metrics.get('correct')}, "
+        f"accuracy: {_format_rate(metrics.get('accuracy'))}"
+    )
+    print(
+        f"False acceptance: {metrics.get('false_acceptance')}/"
+        f"{metrics.get('expected_failed')} "
+        f"({_format_rate(metrics.get('false_acceptance_rate'))})"
+    )
+    print(
+        f"False rejection: {metrics.get('false_rejection')}/"
+        f"{metrics.get('expected_passed')} "
+        f"({_format_rate(metrics.get('false_rejection_rate'))})"
+    )
+    print(
+        f"Invalid results: {metrics.get('invalid_results')} "
+        f"({metrics.get('unexpected_invalid')} unexpected)"
+    )
+    for outcome in report.outcomes:
+        if outcome.category != "correct":
+            print(
+                f"  - {outcome.case_id}: expected {outcome.expected.value}, "
+                f"actual {outcome.actual.value} ({outcome.category})"
+            )
+
+
+def _calibrate_verifier(args: argparse.Namespace) -> int:
+    try:
+        pack = load_calibration_pack(args.pack)
+        report = evaluate_calibration(pack)
+    except CalibrationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+    else:
+        _print_calibration(report)
+    return 0 if report.all_correct else 1
+
+
 def _run_experiment(args: argparse.Namespace) -> int:
     try:
         outcome: ExperimentOutcome = run_experiment(
@@ -328,4 +385,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_command(args)
     if args.command == "show-experiment":
         return _show_experiment(args)
+    if args.command == "calibrate-verifier":
+        return _calibrate_verifier(args)
     raise AssertionError(f"unhandled command: {args.command}")

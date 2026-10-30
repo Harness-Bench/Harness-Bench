@@ -17,7 +17,7 @@ from harnessbench.registry.loader import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-VALID_TASK_PATH = ROOT / "tests" / "fixtures" / "tasks" / "valid_task.json"
+VALID_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
 
 
 def load_payload() -> dict[str, Any]:

@@ -23,6 +23,16 @@ The repository is a **foundation scaffold**, not a working benchmark runner yet.
 
 `Task Definition → Experiment → Run → Independent Verification → Comparison Report`
 
+## Current vertical slice
+
+Task loading and schema validation are implemented. Validate the example task:
+
+```bash
+harnessbench validate-task benchmarks/examples/echo/task.json
+```
+
+Execution, verification, and reporting are not implemented yet.
+
 ## What it evaluates
 
 - **Comparative performance:** compare harnesses under matched conditions.

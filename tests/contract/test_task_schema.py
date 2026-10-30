@@ -10,7 +10,7 @@ from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = ROOT / "schemas" / "task.schema.json"
-VALID_TASK_PATH = ROOT / "tests" / "fixtures" / "tasks" / "valid_task.json"
+VALID_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -32,7 +32,7 @@ def test_task_schema_is_valid() -> None:
     Draft202012Validator.check_schema(load_json(SCHEMA_PATH))
 
 
-def test_valid_fixture_passes_task_schema() -> None:
+def test_example_task_passes_task_schema() -> None:
     assert errors_for(load_json(VALID_TASK_PATH)) == []
 
 

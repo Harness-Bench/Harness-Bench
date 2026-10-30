@@ -1,0 +1,116 @@
+{
+  "schema_version": "0.1.0",
+  "experiment_id": "experiment-echo-newline",
+  "purpose": "ablation",
+  "task_refs": [
+    "benchmarks/examples/echo/task.json"
+  ],
+  "conditions": [
+    {
+      "condition_id": "baseline",
+      "model": {
+        "provider": "fixture",
+        "name": "recorded-response",
+        "revision": "0.1.0",
+        "response_path": "benchmarks/examples/echo/model_response_no_newline.json"
+      },
+      "harness": {
+        "name": "file-actions",
+        "version": "0.2.0",
+        "mechanisms": {
+          "append_trailing_newline": false
+        }
+      },
+      "runtime": {
+        "name": "in-process",
+        "version": "0.1.0",
+        "isolation": "none",
+        "limits": "not_enforced"
+      },
+      "environment": {
+        "profile": "E0",
+        "workspace": "temporary"
+      },
+      "network": {
+        "profile": "N0",
+        "egress": "not_enforced"
+      },
+      "budgets": {
+        "wall_seconds": 30
+      },
+      "language_profile": {
+        "natural_languages": [
+          "en"
+        ],
+        "programming_languages": [],
+        "artifact_languages": [
+          "text"
+        ],
+        "mixed_language": false,
+        "transformation_path": [
+          "direct"
+        ],
+        "source_language": "en",
+        "target_language": "en"
+      },
+      "verifier_version": "0.1.0"
+    },
+    {
+      "condition_id": "append-newline",
+      "model": {
+        "provider": "fixture",
+        "name": "recorded-response",
+        "revision": "0.1.0",
+        "response_path": "benchmarks/examples/echo/model_response_no_newline.json"
+      },
+      "harness": {
+        "name": "file-actions",
+        "version": "0.2.0",
+        "mechanisms": {
+          "append_trailing_newline": true
+        }
+      },
+      "runtime": {
+        "name": "in-process",
+        "version": "0.1.0",
+        "isolation": "none",
+        "limits": "not_enforced"
+      },
+      "environment": {
+        "profile": "E0",
+        "workspace": "temporary"
+      },
+      "network": {
+        "profile": "N0",
+        "egress": "not_enforced"
+      },
+      "budgets": {
+        "wall_seconds": 30
+      },
+      "language_profile": {
+        "natural_languages": [
+          "en"
+        ],
+        "programming_languages": [],
+        "artifact_languages": [
+          "text"
+        ],
+        "mixed_language": false,
+        "transformation_path": [
+          "direct"
+        ],
+        "source_language": "en",
+        "target_language": "en"
+      },
+      "verifier_version": "0.1.0"
+    }
+  ],
+  "repetitions": 3,
+  "analysis_plan": {
+    "metrics": [
+      "quality",
+      "cost"
+    ],
+    "uncertainty": "wilson_95"
+  }
+}

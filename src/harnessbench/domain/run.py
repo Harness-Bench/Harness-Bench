@@ -84,6 +84,7 @@ class ConditionManifest:
     language_profile: JsonObject | None = None
     verifier_version: str | None = None
     analysis_version: str | None = None
+    condition_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ConditionManifest:
@@ -98,6 +99,7 @@ class ConditionManifest:
             language_profile=data.get("language_profile"),
             verifier_version=data.get("verifier_version"),
             analysis_version=data.get("analysis_version"),
+            condition_id=data.get("condition_id"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -111,6 +113,8 @@ class ConditionManifest:
             data["verifier_version"] = self.verifier_version
         if self.analysis_version is not None:
             data["analysis_version"] = self.analysis_version
+        if self.condition_id is not None:
+            data["condition_id"] = self.condition_id
         return data
 
 

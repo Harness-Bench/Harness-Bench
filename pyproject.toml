@@ -9,10 +9,10 @@ description = "A reproducible benchmark for agent harnesses"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = []
+dependencies = ["jsonschema>=4.22"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "jsonschema>=4.22", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 harnessbench = "harnessbench.cli.main:main"
@@ -22,6 +22,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "-ra"
 
 [tool.ruff]

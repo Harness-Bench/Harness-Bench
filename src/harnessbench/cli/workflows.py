@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
@@ -12,7 +13,7 @@ from uuid import uuid4
 
 from harnessbench.adapters.harnesses.base import HarnessError
 from harnessbench.adapters.harnesses.file_actions import FileActionHarness
-from harnessbench.adapters.models.base import ModelAdapterError
+from harnessbench.adapters.models.base import ModelAdapter, ModelAdapterError
 from harnessbench.adapters.models.fixture import FixtureModelAdapter
 from harnessbench.cli.run_lifecycle import finish, json_bytes, save_status, utc_now
 from harnessbench.domain.experiment import Condition
@@ -26,6 +27,13 @@ DEFAULT_RUNS_ROOT = Path("runs")
 DEFAULT_EXPERIMENT_ID = "experiment-local"
 SCHEMA_VERSION = "0.1.0"
 RUNTIME_VERSION = "0.1.0"
+ACTION_PROTOCOL = (
+    "\n\nReturn only a JSON object describing file actions, with no Markdown "
+    "fences or commentary:\n"
+    '{"actions": [{"type": "write_file", "path": "relative/path", '
+    '"content": "exact text"}]}\n'
+    "Paths must be relative to the workspace."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,17 +53,26 @@ def _wall_seconds(task: Task) -> float:
 
 
 def _build_manifest(
-    task: Task, response_path: Path, condition: Condition | None = None
+    task: Task,
+    response_path: Path | None,
+    condition: Condition | None = None,
+    model_manifest: Mapping[str, Any] | None = None,
 ) -> ConditionManifest:
     if condition is not None:
         return condition.to_manifest()
-    return ConditionManifest(
-        model={
+    if model_manifest is not None:
+        model = dict(model_manifest)
+    else:
+        if response_path is None:
+            raise ValueError("response_path is required without a model manifest")
+        model = {
             "provider": "fixture",
             "name": "recorded-response",
             "revision": "0.1.0",
             "response_path": str(response_path),
-        },
+        }
+    return ConditionManifest(
+        model=model,
         harness={"name": "file-actions", "version": FileActionHarness.version},
         runtime={
             "name": "in-process",
@@ -73,16 +90,22 @@ def _build_manifest(
 
 def run_task(
     task_path: str | Path,
-    response_path: str | Path,
+    response_path: str | Path | None = None,
     *,
     runs_root: str | Path = DEFAULT_RUNS_ROOT,
     run_id: str | None = None,
     experiment_id: str = DEFAULT_EXPERIMENT_ID,
     condition: Condition | None = None,
+    model_adapter: ModelAdapter | None = None,
+    model_manifest: Mapping[str, Any] | None = None,
+    prompt_suffix: str | None = None,
+    store_model_response: bool = False,
 ) -> RunTaskOutcome:
     """Execute one task with the baseline adapters and persist the result."""
     task = load_task(task_path)
-    response_path = Path(response_path)
+    response_path = Path(response_path) if response_path is not None else None
+    if model_adapter is None and response_path is None:
+        raise ValueError("response_path is required for the fixture adapter")
     store = RunStore(runs_root)
     run_id = run_id or f"run-{uuid4().hex}"
     mechanisms = condition.harness.get("mechanisms") if condition is not None else None
@@ -93,7 +116,12 @@ def run_task(
         experiment_id=experiment_id,
         task_id=task.task_id,
         status=RunStatus.PLANNED,
-        condition_manifest=_build_manifest(task, response_path, condition),
+        condition_manifest=_build_manifest(
+            task,
+            response_path,
+            condition,
+            model_manifest,
+        ),
         timestamps={"created_at": utc_now()},
     )
     store.save_run(run)
@@ -104,8 +132,14 @@ def run_task(
             workspace = Path(temporary) / "workspace"
             workspace.mkdir()
 
+            prompt = task.instructions + (prompt_suffix or "")
             try:
-                response = FixtureModelAdapter(response_path).invoke(task.instructions)
+                if model_adapter is None:
+                    assert response_path is not None
+                    active_adapter: ModelAdapter = FixtureModelAdapter(response_path)
+                else:
+                    active_adapter = model_adapter
+                response = active_adapter.invoke(prompt)
             except ModelAdapterError as exc:
                 run = finish(
                     store,
@@ -114,6 +148,21 @@ def run_task(
                     detail={"stage": "model_adapter", "message": str(exc)},
                 )
                 return RunTaskOutcome(run, None)
+
+            if store_model_response:
+                store.save_artifact(
+                    run_id,
+                    "model_response.txt",
+                    response.text.encode("utf-8"),
+                )
+                if response.metadata:
+                    store.save_artifact(
+                        run_id,
+                        "model_metadata.json",
+                        json_bytes(dict(response.metadata)),
+                    )
+                run = replace(run, artifact_refs=store.list_artifacts(run_id))
+                store.save_run(run)
 
             run = save_status(store, run, RunStatus.RUNNING, timestamp_key="running_at")
 
@@ -186,6 +235,31 @@ def run_task(
             detail={"stage": "workspace", "message": str(exc)},
         )
         return RunTaskOutcome(run, None)
+
+
+def run_model_task(
+    task_path: str | Path,
+    *,
+    adapter: ModelAdapter,
+    model_manifest: Mapping[str, Any],
+    runs_root: str | Path = DEFAULT_RUNS_ROOT,
+    run_id: str | None = None,
+    experiment_id: str = DEFAULT_EXPERIMENT_ID,
+    condition: Condition | None = None,
+) -> RunTaskOutcome:
+    """Invoke a model adapter, apply its file actions, and verify the result."""
+    return run_task(
+        task_path,
+        None,
+        runs_root=runs_root,
+        run_id=run_id,
+        experiment_id=experiment_id,
+        condition=condition,
+        model_adapter=adapter,
+        model_manifest=model_manifest,
+        prompt_suffix=ACTION_PROTOCOL,
+        store_model_response=True,
+    )
 
 
 def load_run_report(

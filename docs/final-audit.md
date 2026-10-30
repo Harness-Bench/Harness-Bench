@@ -27,6 +27,7 @@ Audit scope: repository foundation and specification consistency, not runtime co
 - Route the file-action baseline through the isolated runtime and add secret redaction.
 - Implement N1/N2 network profiles and test them independently.
 - Add representative task packs and golden evidence fixtures, including multilingual pairs.
+- Evaluate at least one small/older and one stronger model with configured provider credentials.
 - Calibrate the verifier against adjudicated real-task cases.
 - Establish empirically calibrated difficulty and a held-out evaluation lifecycle.
 
@@ -41,6 +42,7 @@ The P1 vertical slice and P2 matched-comparison baseline were implemented after 
 - matched-condition checks, repeated runs, Wilson uncertainty intervals, and separate quality/cost reporting;
 - a bubblewrap-backed isolated runtime with workspace reset, resource limits, N0 network enforcement, trace capture, and cleanup;
 - an isolated command harness that persists runtime traces and artifact evidence;
+- an OpenAI-compatible model adapter and `run-model-task` path with mock-server tests;
 - a synthetic verifier-calibration pack with false-accept/reject metrics.
 
 These do not change the release gate: routing agent execution through the isolated runtime, representative task packs, verifier validation, and empirical calibration remain open.

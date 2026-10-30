@@ -26,8 +26,9 @@ The repository is a **foundation with P1/P2/P3 vertical slices**, not a complete
 
 ## Current vertical slice
 
-Task loading, schema validation, baseline execution, file verification, run
-persistence, and matched-comparison analysis are implemented.
+Task loading, schema validation, recorded and live-model execution, file
+verification, run persistence, and matched-comparison analysis are
+implemented.
 
 ```bash
 harnessbench validate-task benchmarks/examples/echo/task.json
@@ -43,13 +44,18 @@ harnessbench show-experiment experiment-echo-newline
 harnessbench run-command benchmarks/examples/echo/task.json \
   --command "sh -c \"printf 'hello harnessbench\\n' > greeting.txt\""
 
+OPENAI_API_KEY=... harnessbench run-model-task benchmarks/examples/echo/task.json \
+  --endpoint http://localhost:8000/v1 --model local-model
+
 harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
-The file-action baseline runs in-process and is not an isolation boundary.
-The command path runs inside the bubblewrap runtime with resource limits,
-offline network policy, trace capture, and cleanup. Real model providers and
-end-to-end file-action sandboxing are not implemented.
+The recorded-response and live-model file-action paths run in-process and are
+not isolation boundaries. The command path runs inside the bubblewrap runtime
+with resource limits, offline network policy, trace capture, and cleanup.
+`run-model-task` calls an OpenAI-compatible chat-completions endpoint; no
+provider credentials or real-model result are included in this repository.
+End-to-end file-action sandboxing is not implemented.
 
 ## What it evaluates
 

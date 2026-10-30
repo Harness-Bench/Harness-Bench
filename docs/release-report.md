@@ -12,6 +12,7 @@ This release covers the P1–P3 roadmap slices:
 - versioned task and experiment contracts;
 - run lifecycle, condition manifests, and persisted run/artifact records;
 - a recorded baseline model adapter and executable file-action harness;
+- an OpenAI-compatible model adapter for live chat-completions endpoints;
 - an isolated command harness with runtime trace persistence;
 - independent file verification and a synthetic verifier-calibration pack;
 - matched-comparison and ablation analysis with repeated runs and Wilson intervals;
@@ -38,11 +39,12 @@ harnessbench run-command benchmarks/examples/echo/task.json \
 harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
-At release preparation: 110 tests passed, lint passed, documentation checks
+At release preparation: 118 tests passed, lint passed, documentation checks
 passed, the CLI smoke path produced a persisted `success` run plus a matched
 ablation report, the isolated command path produced a verified run with a
-runtime trace, and the synthetic calibration pack reported zero false
-acceptances/rejections.
+runtime trace, the synthetic calibration pack reported zero false
+acceptances/rejections, and the live-model path was exercised against a local
+mock chat-completions server.
 
 ## P4 exit criteria
 
@@ -51,7 +53,7 @@ acceptances/rejections.
 | End-to-end workflow passes | Met for fixture baseline | `tests/integration/test_cli_run.py`, `test_experiment_workflow.py`, `test_command_workflow.py` |
 | Schema and adapter contracts tested | Met | `tests/contract/`, `tests/unit/test_file_action_harness.py` |
 | Verifier calibration harness | Met for synthetic pack | `benchmarks/examples/verifier-calibration/`, `tests/unit/test_verifier_calibration.py` |
-| Small/older and stronger model evaluation when accessible | Not performed | No model providers configured; recorded fixture responses only |
+| Small/older and stronger model evaluation when accessible | Not performed | Adapter exists, but no provider credentials are configured; only recorded responses and a local mock server were used |
 | Results include provenance and verifier version | Met | Run condition manifests and `tests/reproducibility/test_experiment_replay.py` |
 | Known limitations published | Met | This report |
 
@@ -60,9 +62,12 @@ harness effectiveness, or leaderboard ranking.
 
 ## Known limitations
 
-- The model adapter replays a recorded response; it does not call a model.
+- The default baseline adapter replays a recorded response. `run-model-task`
+  calls an OpenAI-compatible endpoint, but no provider is configured in the
+  repository and no real-model benchmark result is included.
 - The file-action harness runs in-process. The command harness runs inside the
-  isolated runtime, but the file-action baseline is not sandboxed.
+  isolated runtime, but neither the recorded-response nor live-model
+  file-action path is sandboxed.
 - Only N0 offline network policy is implemented. N1/N2 requests fail closed
   with `policy_violation`.
 - The example pack is synthetic and tiny; it is not representative of coding,
@@ -75,7 +80,9 @@ harness effectiveness, or leaderboard ranking.
   policies are not implemented.
 - Uncertainty reporting is a Wilson interval over repeated synthetic runs. It
   is not a paired task-level inference or a substitute for independent tasks.
-- Secret redaction and separate verifier access are not implemented.
+- Secrets are read from one environment variable and are not written to run
+  records, but general secret redaction and separate verifier access are not
+  implemented.
 - Isolated-runtime tests require `bwrap`; they skip when bubblewrap is absent.
 
 ## Release gate

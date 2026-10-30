@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import sys
 from collections.abc import Sequence
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from harnessbench.adapters.harnesses.base import HarnessError
+from harnessbench.adapters.models.openai_compatible import OpenAICompatibleModelAdapter
 from harnessbench.cli.command_workflows import RunCommandOutcome, run_command_task
 from harnessbench.cli.experiment_workflows import (
     ExperimentOutcome,
@@ -23,6 +25,7 @@ from harnessbench.cli.workflows import (
     DEFAULT_RUNS_ROOT,
     RunTaskOutcome,
     load_run_report,
+    run_model_task,
     run_task,
 )
 from harnessbench.domain.run import Run, RunStatus
@@ -91,6 +94,28 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--timeout", type=float, default=30.0)
     command.add_argument("--memory-mb", type=int, default=512)
     command.add_argument("--network-profile", default="N0")
+
+    model_task = commands.add_parser(
+        "run-model-task",
+        help="call an OpenAI-compatible model and apply its file actions",
+    )
+    model_task.add_argument("task", type=Path, help="path to a task JSON file")
+    model_task.add_argument(
+        "--endpoint",
+        required=True,
+        help="chat-completions base URL, for example http://localhost:8000/v1",
+    )
+    model_task.add_argument("--model", required=True, help="provider model name")
+    model_task.add_argument(
+        "--api-key-env",
+        default="OPENAI_API_KEY",
+        help="environment variable holding the API key; empty string disables auth",
+    )
+    model_task.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
+    model_task.add_argument("--run-id")
+    model_task.add_argument("--experiment-id", default=DEFAULT_EXPERIMENT_ID)
+    model_task.add_argument("--timeout", type=float, default=30.0)
+    model_task.add_argument("--temperature", type=float, default=0.0)
 
     show_experiment = commands.add_parser(
         "show-experiment",
@@ -353,6 +378,47 @@ def _run_command(args: argparse.Namespace) -> int:
     return 0 if outcome.run.status is RunStatus.SUCCESS else 1
 
 
+def _run_model_task(args: argparse.Namespace) -> int:
+    api_key = os.environ.get(args.api_key_env) if args.api_key_env else None
+    try:
+        adapter = OpenAICompatibleModelAdapter(
+            args.endpoint,
+            args.model,
+            api_key=api_key,
+            timeout_seconds=args.timeout,
+            temperature=args.temperature,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    model_manifest = {
+        "provider": "openai-compatible",
+        "name": args.model,
+        "revision": args.model,
+        "endpoint": args.endpoint,
+        "temperature": args.temperature,
+        "adapter_version": adapter.version,
+    }
+    try:
+        outcome: RunTaskOutcome = run_model_task(
+            args.task,
+            adapter=adapter,
+            model_manifest=model_manifest,
+            runs_root=args.runs_root,
+            run_id=args.run_id,
+            experiment_id=args.experiment_id,
+        )
+    except (TaskLoadError, StorageError, OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    _print_run_summary(outcome.run)
+    if outcome.verification is not None:
+        _print_verification(outcome.verification.to_dict())
+    return 0 if outcome.run.status is RunStatus.SUCCESS else 1
+
+
 def _show_experiment(args: argparse.Namespace) -> int:
     try:
         analysis = load_experiment_report(
@@ -383,6 +449,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_experiment(args)
     if args.command == "run-command":
         return _run_command(args)
+    if args.command == "run-model-task":
+        return _run_model_task(args)
     if args.command == "show-experiment":
         return _show_experiment(args)
     if args.command == "calibrate-verifier":

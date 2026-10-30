@@ -1,0 +1,369 @@
+"""Isolated subprocess runtime using bubblewrap where available."""
+
+from __future__ import annotations
+
+import os
+import resource
+import shutil
+import signal
+import subprocess
+import tempfile
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from enum import StrEnum
+from pathlib import Path
+from time import perf_counter
+from typing import Any, Self
+
+
+class RuntimeStatus(StrEnum):
+    """Outcome of one runtime execution."""
+
+    COMPLETED = "completed"
+    EXECUTION_FAILED = "execution_failed"
+    TIMED_OUT = "timed_out"
+    RESOURCE_LIMITED = "resource_limited"
+    SETUP_FAILED = "setup_failed"
+    POLICY_VIOLATION = "policy_violation"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
+
+
+class RuntimeSetupError(Exception):
+    """The runtime workspace or initial state could not be prepared."""
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionPolicy:
+    """Declared limits and network policy for one execution."""
+
+    timeout_seconds: float = 30.0
+    cpu_seconds: int = 10
+    memory_mb: int = 512
+    max_processes: int = 2048
+    max_file_size_mb: int = 16
+    network_profile: str = "N0"
+    allowed_network_profiles: frozenset[str] = field(
+        default_factory=lambda: frozenset({"N0"})
+    )
+    max_output_chars: int = 100_000
+
+    def __post_init__(self) -> None:
+        if self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        for name in ("cpu_seconds", "memory_mb", "max_processes", "max_file_size_mb"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
+        if self.network_profile not in self.allowed_network_profiles:
+            raise ValueError(
+                f"unsupported network profile: {self.network_profile}; "
+                f"allowed: {sorted(self.allowed_network_profiles)}"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeResult:
+    """Captured execution trace and classified outcome."""
+
+    status: RuntimeStatus
+    command: tuple[str, ...]
+    exit_code: int | None
+    duration_ms: float
+    stdout: str
+    stderr: str
+    network_profile: str
+    detail: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "status": self.status.value,
+            "command": list(self.command),
+            "exit_code": self.exit_code,
+            "duration_ms": self.duration_ms,
+            "stdout": self.stdout,
+            "stderr": self.stderr,
+            "network_profile": self.network_profile,
+        }
+        if self.detail is not None:
+            data["detail"] = self.detail
+        return data
+
+
+def _decode(data: bytes, limit: int) -> str:
+    text = data.decode("utf-8", errors="replace")
+    if len(text) > limit:
+        return text[:limit] + "\n...[truncated]"
+    return text
+
+
+def _resource_limiter(policy: ExecutionPolicy):
+    def apply() -> None:
+        resource.setrlimit(resource.RLIMIT_CPU, (policy.cpu_seconds, policy.cpu_seconds))
+        memory = policy.memory_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (memory, memory))
+        file_size = policy.max_file_size_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_FSIZE, (file_size, file_size))
+        resource.setrlimit(
+            resource.RLIMIT_NPROC,
+            (policy.max_processes, policy.max_processes),
+        )
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+    return apply
+
+
+def _resolve_within(root: Path, name: str) -> Path:
+    path = (root / name).resolve()
+    if not path.is_relative_to(root):
+        raise RuntimeSetupError(f"initial state path escapes workspace: {name!r}")
+    return path
+
+
+class IsolatedRuntime:
+    """Prepare a disposable workspace and execute commands inside bubblewrap.
+
+    The runtime fails closed when bubblewrap is unavailable or the requested
+    network policy is unsupported. It does not silently execute on the host.
+    """
+
+    def __init__(self, policy: ExecutionPolicy | None = None) -> None:
+        self.policy = policy or ExecutionPolicy()
+        self.workspace: Path | None = None
+        self._temporary: tempfile.TemporaryDirectory[str] | None = None
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        self.cleanup()
+
+    def prepare(self, initial_state: Mapping[str, Any] | None = None) -> Path:
+        """Create a fresh workspace and apply declared initial state."""
+        self.cleanup()
+        try:
+            self._temporary = tempfile.TemporaryDirectory(prefix="harnessbench-runtime-")
+            workspace = Path(self._temporary.name) / "workspace"
+            workspace.mkdir()
+            self._apply_initial_state(workspace, initial_state)
+        except Exception:
+            self.cleanup()
+            raise
+        self.workspace = workspace
+        return workspace
+
+    def reset(self, initial_state: Mapping[str, Any] | None = None) -> Path:
+        """Discard prior state and prepare the declared initial state again."""
+        return self.prepare(initial_state)
+
+    def _apply_initial_state(
+        self, workspace: Path, initial_state: Mapping[str, Any] | None
+    ) -> None:
+        if initial_state is None:
+            return
+
+        source_dir = initial_state.get("source_dir")
+        if source_dir is not None:
+            if not isinstance(source_dir, str):
+                raise RuntimeSetupError("source_dir must be a string")
+            source = Path(source_dir)
+            if not source.is_dir():
+                raise RuntimeSetupError(f"source_dir does not exist: {source}")
+            shutil.copytree(source, workspace, dirs_exist_ok=True)
+
+        files = initial_state.get("files", {})
+        if not isinstance(files, Mapping):
+            raise RuntimeSetupError("initial state files must be an object")
+        for name, content in files.items():
+            if not isinstance(name, str) or not isinstance(content, str):
+                raise RuntimeSetupError("initial state files must map strings to strings")
+            path = _resolve_within(workspace, name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+    def cleanup(self) -> None:
+        """Remove the workspace and all files created during execution."""
+        if self._temporary is not None:
+            self._temporary.cleanup()
+        self._temporary = None
+        self.workspace = None
+
+    def _bwrap_command(
+        self,
+        bwrap: str,
+        workspace: Path,
+        policy: ExecutionPolicy,
+        command: Sequence[str],
+    ) -> list[str]:
+        args = [
+            bwrap,
+            "--unshare-user",
+            "--die-with-parent",
+            "--new-session",
+            "--unshare-pid",
+            "--unshare-ipc",
+            "--unshare-uts",
+            "--unshare-cgroup",
+            "--cap-drop",
+            "ALL",
+            "--ro-bind",
+            "/usr",
+            "/usr",
+            "--ro-bind",
+            "/etc",
+            "/etc",
+            "--symlink",
+            "/usr/bin",
+            "/bin",
+            "--symlink",
+            "/usr/bin",
+            "/sbin",
+            "--symlink",
+            "/usr/lib",
+            "/lib",
+            "--dev",
+            "/dev",
+            "--proc",
+            "/proc",
+            "--tmpfs",
+            "/tmp",
+            "--bind",
+            str(workspace),
+            "/workspace",
+            "--chdir",
+            "/workspace",
+            "--clearenv",
+            "--setenv",
+            "PATH",
+            "/usr/bin:/bin",
+            "--setenv",
+            "HOME",
+            "/workspace",
+            "--setenv",
+            "TMPDIR",
+            "/tmp",
+            "--setenv",
+            "LANG",
+            "C.UTF-8",
+        ]
+        if policy.network_profile == "N0":
+            args.append("--unshare-net")
+        args.append("--")
+        args.extend(command)
+        return args
+
+    def execute(
+        self,
+        command: Sequence[str],
+        *,
+        policy: ExecutionPolicy | None = None,
+    ) -> RuntimeResult:
+        """Execute a command in the prepared workspace and capture its trace."""
+        active = policy or self.policy
+        command_tuple = tuple(command)
+        if active.network_profile != "N0":
+            return self._result(
+                RuntimeStatus.POLICY_VIOLATION,
+                command_tuple,
+                active,
+                detail=f"runtime does not support network profile {active.network_profile}",
+            )
+        if self.workspace is None or not self.workspace.is_dir():
+            return self._result(
+                RuntimeStatus.SETUP_FAILED,
+                command_tuple,
+                active,
+                detail="workspace has not been prepared",
+            )
+        bwrap = shutil.which("bwrap")
+        if bwrap is None:
+            return self._result(
+                RuntimeStatus.RUNTIME_UNAVAILABLE,
+                command_tuple,
+                active,
+                detail="bubblewrap (bwrap) is not installed",
+            )
+
+        started = perf_counter()
+        try:
+            process = subprocess.Popen(
+                self._bwrap_command(bwrap, self.workspace, active, command_tuple),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+                # Single-threaded CLI; limits must be set before exec.
+                preexec_fn=_resource_limiter(active),  # noqa: PLW1509
+                env={},
+            )
+        except OSError as exc:
+            return self._result(
+                RuntimeStatus.SETUP_FAILED,
+                command_tuple,
+                active,
+                detail=f"cannot start runtime: {exc}",
+            )
+
+        timed_out = False
+        try:
+            stdout_bytes, stderr_bytes = process.communicate(timeout=active.timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout_bytes, stderr_bytes = process.communicate()
+
+        duration_ms = round((perf_counter() - started) * 1000, 3)
+        stdout = _decode(stdout_bytes, active.max_output_chars)
+        stderr = _decode(stderr_bytes, active.max_output_chars)
+        status, detail = self._classify(
+            process.returncode,
+            timed_out=timed_out,
+            stderr=stderr,
+        )
+        return RuntimeResult(
+            status=status,
+            command=command_tuple,
+            exit_code=process.returncode,
+            duration_ms=duration_ms,
+            stdout=stdout,
+            stderr=stderr,
+            network_profile=active.network_profile,
+            detail=detail,
+        )
+
+    def _classify(
+        self, returncode: int, *, timed_out: bool, stderr: str
+    ) -> tuple[RuntimeStatus, str | None]:
+        if timed_out:
+            return RuntimeStatus.TIMED_OUT, "wall-clock timeout exceeded"
+        if returncode == 0:
+            return RuntimeStatus.COMPLETED, None
+        if returncode in (-signal.SIGXCPU, -signal.SIGXFSZ):
+            return RuntimeStatus.RESOURCE_LIMITED, "resource limit exceeded"
+        if returncode > 128 and (returncode - 128) in (signal.SIGXCPU, signal.SIGXFSZ):
+            return RuntimeStatus.RESOURCE_LIMITED, "resource limit exceeded"
+        if stderr.startswith("bwrap:"):
+            return RuntimeStatus.SETUP_FAILED, stderr.splitlines()[0]
+        if returncode < 0:
+            return RuntimeStatus.EXECUTION_FAILED, f"terminated by signal {-returncode}"
+        return RuntimeStatus.EXECUTION_FAILED, f"exit code {returncode}"
+
+    def _result(
+        self,
+        status: RuntimeStatus,
+        command: tuple[str, ...],
+        policy: ExecutionPolicy,
+        *,
+        detail: str,
+    ) -> RuntimeResult:
+        return RuntimeResult(
+            status=status,
+            command=command,
+            exit_code=None,
+            duration_ms=0.0,
+            stdout="",
+            stderr="",
+            network_profile=policy.network_profile,
+            detail=detail,
+        )

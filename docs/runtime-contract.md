@@ -5,7 +5,7 @@
 - **Model adapter:** invokes a declared model/runtime and records request parameters, response, token/resource usage where available, and provider errors.
 - **Harness adapter:** launches a declared harness/configuration and reports events/artifacts; it cannot declare its own run successful.
 - **Runtime controller:** enforces isolation, permissions, resource/time limits, network policy, setup/reset, and cleanup outside model prompts.
-- **Verifier:** consumes task criteria and evidence with access separation where feasible; emits structured verdicts and evidence references.
+- **Verifier:** consumes task criteria and evidence with access separation where feasible; emits structured verdicts and evidence references. Verifier outcomes are `passed`, `failed`, or `invalid`; `invalid` is a verifier/evidence problem, not a task failure.
 - **Analyzer:** reads immutable records and emits versioned metrics; it does not mutate source runs.
 
 ## Required run record

@@ -23,12 +23,23 @@ Audit scope: repository foundation and specification consistency, not runtime co
 
 ## Remaining implementation work (not a spec defect)
 
-- Enforce schema contracts in code and add schema validation tests.
-- Implement actual adapter/runtime/verifier interfaces and CLI vertical slice.
+- Validate run records against the run schema at the persistence boundary.
+- Implement an isolated runtime with enforced resource/network policy.
 - Add representative task packs and golden evidence fixtures, including multilingual pairs.
-- Implement paired analysis, uncertainty estimates, ablation reports, and validity checks.
-- Validate isolation/network enforcement and test end-to-end reproducibility.
-- Establish empirically calibrated difficulty and held-out evaluation lifecycle.
+- Validate verifier calibration, false acceptance/rejection, and known failure modes.
+- Establish empirically calibrated difficulty and a held-out evaluation lifecycle.
+
+## Post-audit implementation status
+
+The P1 vertical slice and P2 matched-comparison baseline were implemented after this audit:
+
+- task and experiment schema loading/validation;
+- run lifecycle, condition manifests, and run records;
+- recorded baseline model adapter, file-action harness with a mechanism toggle, and independent file verifier;
+- persisted run records/artifacts and CLI `validate-task`, `run-task`, `show-run`, `run-experiment`, and `show-experiment`;
+- matched-condition checks, repeated runs, Wilson uncertainty intervals, and separate quality/cost reporting.
+
+These do not change the release gate: isolation, representative task packs, verifier validation, and empirical calibration remain open.
 
 ## Consistency checks
 

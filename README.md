@@ -17,7 +17,7 @@ HarnessBench is a local-first evaluation framework for measuring model–harness
 - `docs/final-audit.md` — audit decisions, addressed gaps, remaining implementation gates.
 - `docs/roadmap.md` — P0–P4 milestones and exit gates.
 
-The repository is a **foundation with a minimal P1 vertical slice**, not a complete benchmark. Do not infer broad implementation, benchmark coverage, or test success beyond the recorded checks.
+The repository is a **foundation with P1/P2 vertical slices**, not a complete benchmark. Do not infer broad implementation, benchmark coverage, or test success beyond the recorded checks.
 
 ## v0.1 workflow
 
@@ -26,7 +26,7 @@ The repository is a **foundation with a minimal P1 vertical slice**, not a compl
 ## Current vertical slice
 
 Task loading, schema validation, baseline execution, file verification, run
-persistence, and report display are implemented.
+persistence, and matched-comparison analysis are implemented.
 
 ```bash
 harnessbench validate-task benchmarks/examples/echo/task.json
@@ -35,6 +35,9 @@ harnessbench run-task benchmarks/examples/echo/task.json \
   --model-response benchmarks/examples/echo/model_response.json
 
 harnessbench show-run <run_id>
+
+harnessbench run-experiment benchmarks/examples/echo/experiment.json
+harnessbench show-experiment experiment-echo-newline
 ```
 
 The baseline uses an in-process file-action harness and is not an isolation
@@ -76,7 +79,7 @@ execution are not implemented yet.
 
 ## Status
 
-The repository includes a **P1 vertical-slice baseline**: task validation, a recorded baseline model adapter, an in-process file-action harness, independent file verification, persisted run records and artifacts, and CLI report display. It is not an isolated benchmark runtime or a broad benchmark; interfaces and schemas remain drafts until validated at later milestones.
+The repository includes **P1 vertical-slice** and **P2 matched-comparison** baselines: task validation, recorded baseline execution, independent file verification, persisted run records and artifacts, two harness configurations with a mechanism toggle, repeated runs, matched-condition checks, uncertainty intervals, and quality/cost reports. It is not an isolated benchmark runtime or a broad benchmark; interfaces and schemas remain drafts until validated at later milestones.
 
 ## Start here
 

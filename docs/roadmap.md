@@ -28,6 +28,8 @@
 
 ## P2 — Matched comparison and ablation
 
+**Status:** complete — see `tests/integration/test_experiment_workflow.py`, `tests/integration/test_cli_experiment.py`, and `tests/unit/test_compare.py`.
+
 **Deliver:** condition matrix, at least two harness configurations, mechanism toggle, repeated runs, basic uncertainty reporting.
 
 **Exit criteria:**

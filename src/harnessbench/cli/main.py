@@ -9,6 +9,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from harnessbench.cli.experiment_workflows import (
+    ExperimentOutcome,
+    ExperimentRunError,
+    load_experiment_report,
+    run_experiment,
+)
 from harnessbench.cli.workflows import (
     DEFAULT_EXPERIMENT_ID,
     DEFAULT_RUNS_ROOT,
@@ -17,6 +23,7 @@ from harnessbench.cli.workflows import (
     run_task,
 )
 from harnessbench.domain.run import Run, RunStatus
+from harnessbench.registry.experiment_loader import ExperimentLoadError
 from harnessbench.registry.loader import TaskLoadError, load_task
 from harnessbench.storage.store import StorageError
 
@@ -48,6 +55,22 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("run_id")
     show.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     show.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    experiment = commands.add_parser(
+        "run-experiment",
+        help="run an experiment and write a matched-comparison report",
+    )
+    experiment.add_argument("experiment", type=Path, help="path to an experiment JSON file")
+    experiment.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
+    experiment.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    show_experiment = commands.add_parser(
+        "show-experiment",
+        help="show a stored experiment analysis report",
+    )
+    show_experiment.add_argument("experiment_id")
+    show_experiment.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
+    show_experiment.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     return parser
 
 
@@ -129,6 +152,100 @@ def _show_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _format_rate(value: object) -> str:
+    if isinstance(value, (int, float)):
+        return f"{value:.1%}"
+    return "n/a"
+
+
+def _format_delta(value: object, unit: str) -> str:
+    if isinstance(value, (int, float)):
+        return f"{value:+.3f} {unit}" if unit == "ms" else f"{value:+.1%}"
+    return "n/a"
+
+
+def _format_interval(value: object) -> str:
+    if isinstance(value, list) and len(value) == 2:
+        return f"{_format_rate(value[0])}-{_format_rate(value[1])}"
+    return "n/a"
+
+
+def _print_experiment(analysis: dict[str, Any]) -> None:
+    print(f"Experiment {analysis.get('experiment_id')}: {analysis.get('purpose')}")
+    conditions = analysis.get("conditions", [])
+    total_runs = 0
+    for condition in conditions:
+        if not isinstance(condition, dict):
+            continue
+        quality = condition.get("quality", {})
+        total_runs += int(quality.get("runs", 0))
+    print(f"Runs: {total_runs} across {len(conditions)} conditions")
+
+    for condition in conditions:
+        if not isinstance(condition, dict):
+            continue
+        quality = condition.get("quality", {})
+        cost = condition.get("cost", {})
+        mean = cost.get("mean_duration_ms")
+        mean_text = f"{mean:.3f} ms" if isinstance(mean, (int, float)) else "n/a"
+        print(
+            f"  {condition.get('condition_id')}: "
+            f"{quality.get('successes')}/{quality.get('runs')} success, "
+            f"pass rate {_format_rate(quality.get('pass_rate'))} "
+            f"(95% CI {_format_interval(quality.get('wilson_95'))}), "
+            f"mean {mean_text}"
+        )
+
+    for comparison in analysis.get("comparisons", []):
+        if not isinstance(comparison, dict):
+            continue
+        print(
+            f"Comparison {comparison.get('condition_a')} vs "
+            f"{comparison.get('condition_b')}: {comparison.get('label')}"
+        )
+        mismatched = comparison.get("mismatched_fields", [])
+        if mismatched:
+            print(f"  mismatched fields: {', '.join(mismatched)}")
+        print(
+            f"  quality delta: {_format_delta(comparison.get('quality_delta'), 'rate')}; "
+            f"cost delta: {_format_delta(comparison.get('cost_delta_mean_ms'), 'ms')}"
+        )
+
+
+def _run_experiment(args: argparse.Namespace) -> int:
+    try:
+        outcome: ExperimentOutcome = run_experiment(
+            args.experiment,
+            runs_root=args.runs_root,
+        )
+    except (ExperimentLoadError, ExperimentRunError, TaskLoadError, StorageError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(outcome.analysis, indent=2, sort_keys=True))
+    else:
+        _print_experiment(outcome.analysis)
+    return 0
+
+
+def _show_experiment(args: argparse.Namespace) -> int:
+    try:
+        analysis = load_experiment_report(
+            args.experiment_id,
+            runs_root=args.runs_root,
+        )
+    except ExperimentRunError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(analysis, indent=2, sort_keys=True))
+    else:
+        _print_experiment(analysis)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     args = build_parser().parse_args(argv)
@@ -138,4 +255,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_task(args)
     if args.command == "show-run":
         return _show_run(args)
+    if args.command == "run-experiment":
+        return _run_experiment(args)
+    if args.command == "show-experiment":
+        return _show_experiment(args)
     raise AssertionError(f"unhandled command: {args.command}")

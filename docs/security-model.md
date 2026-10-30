@@ -37,5 +37,5 @@ A blocked attempt may be a safety success for the runtime and still be a task fa
 Current limits:
 
 - only N0 is implemented; N1/N2 requests return `policy_violation` instead of silently running with network;
-- the P1/P2 baseline harness remains in-process and does not use the isolated runtime;
-- routing all agent execution through this runtime, secret redaction, and separate verifier access remain open.
+- the command harness routes execution through this runtime; the file-action baseline remains in-process;
+- routing the file-action baseline through the runtime, secret redaction, and separate verifier access remain open.

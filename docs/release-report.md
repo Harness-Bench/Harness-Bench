@@ -12,6 +12,7 @@ This release covers the P1–P3 roadmap slices:
 - versioned task and experiment contracts;
 - run lifecycle, condition manifests, and persisted run/artifact records;
 - a recorded baseline model adapter and executable file-action harness;
+- an isolated command harness with runtime trace persistence;
 - independent file verification;
 - matched-comparison and ablation analysis with repeated runs and Wilson intervals;
 - a bubblewrap-backed isolated runtime with resource limits, N0 network
@@ -32,17 +33,20 @@ harnessbench run-task benchmarks/examples/echo/task.json \
   --model-response benchmarks/examples/echo/model_response.json
 harnessbench run-experiment benchmarks/examples/echo/experiment.json
 harnessbench show-experiment experiment-echo-newline
+harnessbench run-command benchmarks/examples/echo/task.json \
+  --command "sh -c \"printf 'hello harnessbench\\n' > greeting.txt\""
 ```
 
-At release preparation: 93 tests passed, lint passed, documentation checks
-passed, and the CLI smoke path produced a persisted `success` run plus a
-matched ablation report.
+At release preparation: 103 tests passed, lint passed, documentation checks
+passed, the CLI smoke path produced a persisted `success` run plus a matched
+ablation report, and the isolated command path produced a verified run with a
+runtime trace.
 
 ## P4 exit criteria
 
 | Criterion | Status | Evidence |
 | --- | --- | --- |
-| End-to-end workflow passes | Met for fixture baseline | `tests/integration/test_cli_run.py`, `test_experiment_workflow.py` |
+| End-to-end workflow passes | Met for fixture baseline | `tests/integration/test_cli_run.py`, `test_experiment_workflow.py`, `test_command_workflow.py` |
 | Schema and adapter contracts tested | Met | `tests/contract/`, `tests/unit/test_file_action_harness.py` |
 | Small/older and stronger model evaluation when accessible | Not performed | No model providers configured; recorded fixture responses only |
 | Results include provenance and verifier version | Met | Run condition manifests and `tests/reproducibility/test_experiment_replay.py` |
@@ -54,8 +58,8 @@ harness effectiveness, or leaderboard ranking.
 ## Known limitations
 
 - The model adapter replays a recorded response; it does not call a model.
-- The file-action harness runs in-process. The isolated runtime is implemented
-  but not yet routed through the baseline workflow.
+- The file-action harness runs in-process. The command harness runs inside the
+  isolated runtime, but the file-action baseline is not sandboxed.
 - Only N0 offline network policy is implemented. N1/N2 requests fail closed
   with `policy_violation`.
 - The example pack is synthetic and tiny; it is not representative of coding,

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from harnessbench.adapters.harnesses.base import HarnessError
+from harnessbench.cli.command_workflows import RunCommandOutcome, run_command_task
 from harnessbench.cli.experiment_workflows import (
     ExperimentOutcome,
     ExperimentRunError,
@@ -25,6 +28,7 @@ from harnessbench.cli.workflows import (
 from harnessbench.domain.run import Run, RunStatus
 from harnessbench.registry.experiment_loader import ExperimentLoadError
 from harnessbench.registry.loader import TaskLoadError, load_task
+from harnessbench.runtime.isolated import ExecutionPolicy
 from harnessbench.storage.store import StorageError
 
 
@@ -63,6 +67,24 @@ def build_parser() -> argparse.ArgumentParser:
     experiment.add_argument("experiment", type=Path, help="path to an experiment JSON file")
     experiment.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     experiment.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    command = commands.add_parser(
+        "run-command",
+        help="run a trusted command inside the isolated runtime",
+    )
+    command.add_argument("task", type=Path, help="path to a task JSON file")
+    command.add_argument(
+        "--command",
+        dest="command_line",
+        required=True,
+        help="command line to execute inside the sandbox",
+    )
+    command.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
+    command.add_argument("--run-id")
+    command.add_argument("--experiment-id", default=DEFAULT_EXPERIMENT_ID)
+    command.add_argument("--timeout", type=float, default=30.0)
+    command.add_argument("--memory-mb", type=int, default=512)
+    command.add_argument("--network-profile", default="N0")
 
     show_experiment = commands.add_parser(
         "show-experiment",
@@ -229,6 +251,51 @@ def _run_experiment(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_command(args: argparse.Namespace) -> int:
+    try:
+        tokens = shlex.split(args.command_line)
+    except ValueError as exc:
+        print(f"error: invalid command: {exc}", file=sys.stderr)
+        return 1
+    if not tokens:
+        print("error: command must not be empty", file=sys.stderr)
+        return 1
+
+    try:
+        policy = ExecutionPolicy(
+            timeout_seconds=args.timeout,
+            memory_mb=args.memory_mb,
+            network_profile=args.network_profile,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        outcome: RunCommandOutcome = run_command_task(
+            args.task,
+            tokens,
+            runs_root=args.runs_root,
+            run_id=args.run_id,
+            experiment_id=args.experiment_id,
+            policy=policy,
+        )
+    except (HarnessError, TaskLoadError, StorageError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    _print_run_summary(outcome.run)
+    if outcome.runtime_result is not None:
+        runtime = outcome.runtime_result
+        print(
+            f"Runtime: {runtime.status.value} "
+            f"(exit {runtime.exit_code}, {runtime.duration_ms:.3f} ms)"
+        )
+    if outcome.verification is not None:
+        _print_verification(outcome.verification.to_dict())
+    return 0 if outcome.run.status is RunStatus.SUCCESS else 1
+
+
 def _show_experiment(args: argparse.Namespace) -> int:
     try:
         analysis = load_experiment_report(
@@ -257,6 +324,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _show_run(args)
     if args.command == "run-experiment":
         return _run_experiment(args)
+    if args.command == "run-command":
+        return _run_command(args)
     if args.command == "show-experiment":
         return _show_experiment(args)
     raise AssertionError(f"unhandled command: {args.command}")

@@ -39,13 +39,15 @@ harnessbench show-run <run_id>
 
 harnessbench run-experiment benchmarks/examples/echo/experiment.json
 harnessbench show-experiment experiment-echo-newline
+
+harnessbench run-command benchmarks/examples/echo/task.json \
+  --command "sh -c \"printf 'hello harnessbench\\n' > greeting.txt\""
 ```
 
-The baseline uses an in-process file-action harness and is not an isolation
-boundary. A separate bubblewrap-backed runtime implements workspace reset,
-resource limits, offline network enforcement, trace capture, and cleanup; the
-baseline workflow does not route through it yet. Real model providers, real
-harness integrations, and end-to-end sandboxed execution are not implemented.
+The file-action baseline runs in-process and is not an isolation boundary.
+The command path runs inside the bubblewrap runtime with resource limits,
+offline network policy, trace capture, and cleanup. Real model providers and
+end-to-end file-action sandboxing are not implemented.
 
 ## What it evaluates
 
@@ -83,11 +85,7 @@ harness integrations, and end-to-end sandboxed execution are not implemented.
 
 ## Status
 
-The repository has a **v0.1 fixture-baseline release**: P1/P2/P3 slices plus a
-second example task and reproducibility checks. See
-[`docs/release-report.md`](docs/release-report.md) for evidence and limitations.
-This is not a real-model benchmark result; the real-model and calibration gates
-remain open.
+The repository has a **v0.1 fixture-baseline release**: P1/P2/P3 slices, a second example task, reproducibility checks, and an isolated command-execution path. See [`docs/release-report.md`](docs/release-report.md) for evidence and limitations. This is not a real-model benchmark result; the real-model and calibration gates remain open.
 
 ## Start here
 

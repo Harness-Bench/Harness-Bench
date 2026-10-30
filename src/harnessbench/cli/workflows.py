@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import tempfile
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -15,6 +14,7 @@ from harnessbench.adapters.harnesses.base import HarnessError
 from harnessbench.adapters.harnesses.file_actions import FileActionHarness
 from harnessbench.adapters.models.base import ModelAdapterError
 from harnessbench.adapters.models.fixture import FixtureModelAdapter
+from harnessbench.cli.run_lifecycle import finish, json_bytes, save_status, utc_now
 from harnessbench.domain.experiment import Condition
 from harnessbench.domain.run import ConditionManifest, Run, RunStatus
 from harnessbench.domain.task import Task
@@ -34,15 +34,6 @@ class RunTaskOutcome:
 
     run: Run
     verification: VerificationResult | None
-
-
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def _json_bytes(payload: object) -> bytes:
-    text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    return text.encode("utf-8")
 
 
 def _wall_seconds(task: Task) -> float:
@@ -80,37 +71,6 @@ def _build_manifest(
     )
 
 
-def _save_status(
-    store: RunStore,
-    run: Run,
-    status: RunStatus,
-    *,
-    timestamp_key: str | None = None,
-    extra: dict[str, Any] | None = None,
-) -> Run:
-    timestamps = dict(run.timestamps)
-    if timestamp_key is not None:
-        timestamps[timestamp_key] = _utc_now()
-    if extra is not None:
-        timestamps.update(extra)
-    updated = replace(run, status=status, timestamps=timestamps)
-    store.save_run(updated)
-    return updated
-
-
-def _finish(
-    store: RunStore,
-    run: Run,
-    status: RunStatus,
-    *,
-    detail: dict[str, Any] | None,
-) -> Run:
-    timestamps = {**run.timestamps, "finished_at": _utc_now()}
-    updated = replace(run, status=status, failure_detail=detail, timestamps=timestamps)
-    store.save_run(updated)
-    return updated
-
-
 def run_task(
     task_path: str | Path,
     response_path: str | Path,
@@ -134,10 +94,10 @@ def run_task(
         task_id=task.task_id,
         status=RunStatus.PLANNED,
         condition_manifest=_build_manifest(task, response_path, condition),
-        timestamps={"created_at": _utc_now()},
+        timestamps={"created_at": utc_now()},
     )
     store.save_run(run)
-    run = _save_status(store, run, RunStatus.PREPARED, timestamp_key="prepared_at")
+    run = save_status(store, run, RunStatus.PREPARED, timestamp_key="prepared_at")
 
     try:
         with tempfile.TemporaryDirectory(prefix="harnessbench-") as temporary:
@@ -147,7 +107,7 @@ def run_task(
             try:
                 response = FixtureModelAdapter(response_path).invoke(task.instructions)
             except ModelAdapterError as exc:
-                run = _finish(
+                run = finish(
                     store,
                     run,
                     RunStatus.ADAPTER_FAILED,
@@ -155,13 +115,13 @@ def run_task(
                 )
                 return RunTaskOutcome(run, None)
 
-            run = _save_status(store, run, RunStatus.RUNNING, timestamp_key="running_at")
+            run = save_status(store, run, RunStatus.RUNNING, timestamp_key="running_at")
 
             started = perf_counter()
             try:
                 FileActionHarness(mechanisms=mechanisms).run(response, workspace)
             except HarnessError as exc:
-                run = _finish(
+                run = finish(
                     store,
                     run,
                     RunStatus.ADAPTER_FAILED,
@@ -176,7 +136,7 @@ def run_task(
                         relative = path.relative_to(workspace).as_posix()
                         store.save_artifact(run_id, relative, path.read_bytes())
             except OSError as exc:
-                run = _finish(
+                run = finish(
                     store,
                     run,
                     RunStatus.EXECUTION_FAILED,
@@ -184,7 +144,7 @@ def run_task(
                 )
                 return RunTaskOutcome(run, None)
 
-            run = _save_status(
+            run = save_status(
                 store,
                 run,
                 RunStatus.COLLECTED,
@@ -198,7 +158,7 @@ def run_task(
             store.save_artifact(
                 run_id,
                 "verification.json",
-                _json_bytes(verification.to_dict()),
+                json_bytes(verification.to_dict()),
             )
             run = replace(
                 run,
@@ -206,7 +166,7 @@ def run_task(
                 evidence_refs=verification.evidence_refs,
                 artifact_refs=store.list_artifacts(run_id),
             )
-            run = _save_status(store, run, RunStatus.VERIFIED, timestamp_key="verified_at")
+            run = save_status(store, run, RunStatus.VERIFIED, timestamp_key="verified_at")
 
             final_status = verification.to_run_status()
             detail = None
@@ -216,10 +176,10 @@ def run_task(
                     "verifier_status": verification.status.value,
                     "message": verification.detail or "task verification failed",
                 }
-            run = _finish(store, run, final_status, detail=detail)
+            run = finish(store, run, final_status, detail=detail)
             return RunTaskOutcome(run, verification)
     except OSError as exc:
-        run = _finish(
+        run = finish(
             store,
             run,
             RunStatus.SETUP_FAILED,

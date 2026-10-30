@@ -4,3 +4,4 @@ Launch or connect to harnesses and normalize their observable events. Adapters d
 
 - `base.py`: harness adapter protocol and result value object.
 - `file_actions.py`: baseline harness that applies `write_file` actions from a model response and supports the `append_trailing_newline` mechanism.
+- `command.py`: command harness that executes inside the isolated bubblewrap runtime.

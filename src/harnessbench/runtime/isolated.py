@@ -337,10 +337,13 @@ class IsolatedRuntime:
         command: Sequence[str],
         *,
         policy: ExecutionPolicy | None = None,
+        input_data: bytes | None = None,
     ) -> RuntimeResult:
         """Execute a command in the prepared workspace and capture its trace."""
         active = policy or self.policy
         command_tuple = tuple(command)
+        if input_data is not None and not isinstance(input_data, bytes):
+            raise TypeError("input_data must be bytes")
         if not active.network_supported:
             return self._result(
                 RuntimeStatus.POLICY_VIOLATION,
@@ -397,7 +400,7 @@ class IsolatedRuntime:
                         command_tuple,
                         proxy=proxy,
                     ),
-                    stdin=subprocess.DEVNULL,
+                    stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     start_new_session=True,
@@ -417,7 +420,8 @@ class IsolatedRuntime:
             timed_out = False
             try:
                 stdout_bytes, stderr_bytes = process.communicate(
-                    timeout=active.timeout_seconds
+                    input=input_data,
+                    timeout=active.timeout_seconds,
                 )
             except subprocess.TimeoutExpired:
                 timed_out = True

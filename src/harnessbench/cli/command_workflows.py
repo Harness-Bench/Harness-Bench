@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 from harnessbench.adapters.harnesses.command import CommandHarness
 from harnessbench.cli.run_lifecycle import finish, json_bytes, save_status, utc_now
+from harnessbench.cli.runtime_outcomes import RUNTIME_STATUS_MAP, runtime_failure_detail
 from harnessbench.cli.workflows import DEFAULT_EXPERIMENT_ID, DEFAULT_RUNS_ROOT
 from harnessbench.domain.run import ConditionManifest, Run, RunStatus
 from harnessbench.domain.task import Task
@@ -25,15 +25,6 @@ from harnessbench.verification.verifier import FileVerifier, VerificationResult
 
 SCHEMA_VERSION = "0.1.0"
 RUNTIME_VERSION = "0.1.0"
-
-RUNTIME_STATUS_MAP = {
-    RuntimeStatus.TIMED_OUT: RunStatus.TIMED_OUT,
-    RuntimeStatus.RESOURCE_LIMITED: RunStatus.RESOURCE_LIMITED,
-    RuntimeStatus.POLICY_VIOLATION: RunStatus.POLICY_VIOLATION,
-    RuntimeStatus.SETUP_FAILED: RunStatus.SETUP_FAILED,
-    RuntimeStatus.RUNTIME_UNAVAILABLE: RunStatus.SETUP_FAILED,
-    RuntimeStatus.EXECUTION_FAILED: RunStatus.EXECUTION_FAILED,
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,14 +85,6 @@ def _collect_artifacts(store: RunStore, run_id: str, workspace: Path) -> tuple[s
     return store.list_artifacts(run_id)
 
 
-def _runtime_failure_detail(result: RuntimeResult) -> dict[str, Any]:
-    return {
-        "stage": "runtime",
-        "runtime_status": result.status.value,
-        "message": result.detail or "runtime execution failed",
-    }
-
-
 def run_command_task(
     task_path: str | Path,
     command: Sequence[str],
@@ -156,7 +139,7 @@ def run_command_task(
                     store,
                     run,
                     status,
-                    detail=_runtime_failure_detail(result),
+                    detail=runtime_failure_detail(result),
                 )
                 return RunCommandOutcome(run, None, result)
 

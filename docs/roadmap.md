@@ -40,7 +40,7 @@
 
 ## P3 — Isolated runtime
 
-**Status:** complete for N0/N1/N2 enforcement; N2 packet-level monitoring remains open. See `tests/integration/test_isolated_runtime.py` and `tests/unit/test_egress_proxy.py`.
+**Status:** complete for N0/N1/N2 enforcement and file-action/command routing; N2 packet-level monitoring remains open. See `tests/integration/test_isolated_runtime.py` and `tests/unit/test_egress_proxy.py`.
 
 **Deliver:** environment setup/reset, resource limits, network enforcement, trace capture, cleanup and failure recovery.
 
@@ -51,7 +51,7 @@
 
 ## P4 — Validation and v0.1 release
 
-**Status:** fixture-baseline scope complete; live-model evaluation, N2 monitoring, and calibration gates remain open. See `release-report.md`.
+**Status:** fixture-baseline scope complete; live-model evaluation, N2 monitoring, representative task packs, and calibration gates remain open. See `release-report.md`.
 
 **Deliver:** contract/integration/reproducibility tests, example benchmark pack, documented limitations, release report.
 

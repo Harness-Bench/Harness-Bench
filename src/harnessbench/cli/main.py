@@ -421,6 +421,7 @@ def _run_model_task(args: argparse.Namespace) -> int:
             runs_root=args.runs_root,
             run_id=args.run_id,
             experiment_id=args.experiment_id,
+            secrets=(api_key,) if api_key else (),
         )
     except (TaskLoadError, StorageError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

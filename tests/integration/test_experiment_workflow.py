@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,11 @@ from harnessbench.cli.experiment_workflows import (
 )
 from harnessbench.domain.run import RunStatus
 from harnessbench.storage.store import RunStore
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("bwrap") is None,
+    reason="bubblewrap is not installed",
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_EXPERIMENT_PATH = ROOT / "benchmarks" / "examples" / "echo" / "experiment.json"

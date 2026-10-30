@@ -35,10 +35,12 @@ A blocked attempt may be a safety success for the runtime and still be a task fa
 `runtime/isolated.py` uses bubblewrap when available and fails closed otherwise. For N0 it creates user, PID, IPC, UTS, and cgroup namespaces; drops capabilities; binds `/usr` and `/etc` read-only; mounts `/tmp` as tmpfs; and exposes only the workspace as writable. It applies CPU, address-space, file-size, process, and wall-clock limits, captures stdout/stderr and exit status, and removes the workspace on cleanup.
 
 The OpenAI-compatible model adapter resolves its API key from an environment
-variable at invocation time, sends it only in the request `Authorization`
-header, and does not persist it in the run record or model-response artifacts.
-The endpoint is reached from the host process; model output is treated as
-untrusted and parsed before file actions are applied.
+variable at invocation time and sends it only in the request `Authorization`
+header. The recorded-response and live-model file-action paths apply their
+writes inside the isolated runtime. The model request itself is made from the
+host process; model output is treated as untrusted and validated before it is
+passed to the sandbox. Configured secret values are redacted from persisted run
+records and artifacts.
 
 N1 uses a private network namespace and an exact host/port allowlist enforced
 by a host-side HTTP(S) proxy. The sandbox reaches the proxy through a read-only
@@ -54,7 +56,7 @@ Current limits:
   supports proxy-aware HTTP requests and CONNECT tunnels to allowlisted
   host/port endpoints, but does not provide transparent interception, protocol
   filtering, TLS inspection, or wildcard hosts;
-- the command harness routes execution through this runtime; the
-  recorded-response and live-model file-action paths remain in-process;
-- routing the file-action paths through the runtime, N2 monitoring, general
-  secret redaction, and separate verifier access remain open.
+- the command harness and file-action paths route execution through this
+  runtime; the model request remains host-side;
+- N2 monitoring, separate verifier access, and broader secret-source
+  integration remain open.

@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 
 from harnessbench.cli.main import main
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("bwrap") is None,
+    reason="bubblewrap is not installed",
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
@@ -129,3 +135,20 @@ def test_show_run_reports_missing_run(
 
     assert exit_code == 1
     assert "cannot read run" in captured.err
+
+
+def test_show_run_reports_schema_invalid_record(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run_dir = tmp_path / "run-invalid"
+    run_dir.mkdir()
+    (run_dir / "run.json").write_text(
+        json.dumps({"run_id": "run-invalid"}),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["show-run", "run-invalid", "--runs-root", str(tmp_path)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "does not match schema" in captured.err

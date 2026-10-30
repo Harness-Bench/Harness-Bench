@@ -16,16 +16,16 @@
       },
       "harness": {
         "name": "file-actions",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "mechanisms": {
           "append_trailing_newline": false
         }
       },
       "runtime": {
-        "name": "in-process",
+        "name": "bubblewrap",
         "version": "0.1.0",
-        "isolation": "none",
-        "limits": "not_enforced"
+        "isolation": "namespaces",
+        "limits": "enforced"
       },
       "environment": {
         "profile": "E0",
@@ -33,7 +33,10 @@
       },
       "network": {
         "profile": "N0",
-        "egress": "not_enforced"
+        "egress": "blocked",
+        "mechanism": "network_namespace",
+        "allowlist": [],
+        "monitoring": "not_applicable"
       },
       "budgets": {
         "wall_seconds": 30
@@ -65,16 +68,16 @@
       },
       "harness": {
         "name": "file-actions",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "mechanisms": {
           "append_trailing_newline": true
         }
       },
       "runtime": {
-        "name": "in-process",
+        "name": "bubblewrap",
         "version": "0.1.0",
-        "isolation": "none",
-        "limits": "not_enforced"
+        "isolation": "namespaces",
+        "limits": "enforced"
       },
       "environment": {
         "profile": "E0",
@@ -82,7 +85,10 @@
       },
       "network": {
         "profile": "N0",
-        "egress": "not_enforced"
+        "egress": "blocked",
+        "mechanism": "network_namespace",
+        "allowlist": [],
+        "monitoring": "not_applicable"
       },
       "budgets": {
         "wall_seconds": 30

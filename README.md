@@ -54,13 +54,14 @@ OPENAI_API_KEY=... harnessbench run-model-task benchmarks/examples/echo/task.jso
 harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
-The recorded-response and live-model file-action paths run in-process and are
-not isolation boundaries. The command path runs inside the bubblewrap runtime
-with resource limits, trace capture, and cleanup. N0 blocks egress, N1 permits
-only exact `--allow-host` entries through an HTTP(S) proxy, and N2 shares the
-host network. `run-model-task` calls an OpenAI-compatible chat-completions
-endpoint; no provider credentials or real-model result are included in this
-repository. End-to-end file-action sandboxing is not implemented.
+The recorded-response and live-model file-action paths apply writes inside the
+bubblewrap runtime with resource limits, trace capture, and cleanup. The model
+request itself is made from the host process. N0 blocks egress, N1 permits only
+exact `--allow-host` entries through an HTTP(S) proxy, and N2 shares the host
+network. `run-model-task` calls an OpenAI-compatible chat-completions endpoint;
+no provider credentials or real-model result are included in this repository.
+Configured secret values are redacted from persisted run records and artifacts.
+N2 packet-level monitoring remains open.
 
 ## What it evaluates
 

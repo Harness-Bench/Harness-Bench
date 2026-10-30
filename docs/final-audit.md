@@ -23,8 +23,6 @@ Audit scope: repository foundation and specification consistency, not runtime co
 
 ## Remaining implementation work (not a spec defect)
 
-- Validate run records against the run schema at the persistence boundary.
-- Route the file-action baseline through the isolated runtime and add secret redaction.
 - Add N2 packet-level monitoring; N0, N1 allowlist egress, and N2 host-network policies are implemented and tested.
 - Add representative task packs and golden evidence fixtures, including multilingual pairs.
 - Evaluate at least one small/older and one stronger model with configured provider credentials.
@@ -43,9 +41,12 @@ The P1 vertical slice and P2 matched-comparison baseline were implemented after 
 - a bubblewrap-backed isolated runtime with workspace reset, resource limits, N0 isolation, N1 allowlist egress, N2 host-network policy, trace capture, and cleanup;
 - an isolated command harness that persists runtime traces and artifact evidence;
 - an OpenAI-compatible model adapter and `run-model-task` path with mock-server tests;
-- a synthetic verifier-calibration pack with false-accept/reject metrics.
+- a synthetic verifier-calibration pack with false-accept/reject metrics;
+- run-record validation against `schemas/run.schema.json` on both save and load;
+- file-action execution inside the isolated runtime with runtime traces;
+- persisted-evidence redaction for configured secret values.
 
-These do not change the release gate: routing agent execution through the isolated runtime, N2 monitoring, representative task packs, verifier validation, and empirical calibration remain open.
+These do not change the release gate: real-model evaluation, N2 monitoring, representative task packs, verifier validation, and empirical calibration remain open.
 
 ## Consistency checks
 
@@ -60,4 +61,4 @@ These do not change the release gate: routing agent execution through the isolat
 
 ## Release gate
 
-The P1–P3 fixture baseline passes contract, unit, integration, and reproducibility tests, and the v0.1 fixture-baseline release report is published. Do not call this a general benchmark release until P0 review sign-off, real-model evaluation, runtime-routed file-action execution, representative task packs, adjudicated verifier calibration, and empirical calibration are complete. See `release-report.md`.
+The P1–P3 fixture baseline passes contract, unit, integration, and reproducibility tests, and the v0.1 fixture-baseline release report is published. Do not call this a general benchmark release until P0 review sign-off, real-model evaluation, N2 monitoring, representative task packs, adjudicated verifier calibration, and empirical calibration are complete. See `release-report.md`.

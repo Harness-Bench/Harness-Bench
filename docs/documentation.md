@@ -37,8 +37,11 @@ Use these labels when status matters:
 - **Draft** — proposed contract; not validated.
 - **Deferred** — intentionally outside the current scope.
 
-The package tree is currently **Scaffold**: docstrings describe intended
-boundaries, not working behavior.
+The P1–P3 fixture baseline is **Implemented** and covered by contract,
+integration, unit, and reproducibility tests; remaining P4 gates are tracked in
+`roadmap.md` and `final-audit.md`. Treat a package or module as **Scaffold**
+only where its colocated `index.md` or docstring says so; do not infer
+unimplemented behavior from directory presence alone.
 
 ## Adding or moving a package
 

@@ -32,7 +32,7 @@ def save_status(
     if timestamp_key is not None:
         timestamps[timestamp_key] = utc_now()
     if extra is not None:
-        timestamps.update(extra)
+        timestamps.update(store.redactor.redact_payload(extra))
     updated = replace(run, status=status, timestamps=timestamps)
     store.save_run(updated)
     return updated
@@ -46,6 +46,8 @@ def finish(
     detail: dict[str, Any] | None,
 ) -> Run:
     timestamps = {**run.timestamps, "finished_at": utc_now()}
+    if detail is not None:
+        detail = store.redactor.redact_payload(detail)
     updated = replace(run, status=status, failure_detail=detail, timestamps=timestamps)
     store.save_run(updated)
     return updated

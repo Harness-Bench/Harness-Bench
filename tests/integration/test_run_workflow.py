@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
+
+import pytest
 
 from harnessbench.cli.workflows import load_run_report, run_task
 from harnessbench.domain.run import RunStatus
 from harnessbench.storage.store import RunStore
 from harnessbench.verification.verifier import VerificationStatus
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("bwrap") is None,
+    reason="bubblewrap is not installed",
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
@@ -35,11 +43,13 @@ def test_successful_run_persists_verified_record(tmp_path: Path) -> None:
     assert outcome.verification.status is VerificationStatus.PASSED
     assert "greeting.txt" in outcome.run.artifact_refs
     assert "verification.json" in outcome.run.artifact_refs
+    assert "runtime_trace.json" in outcome.run.artifact_refs
     assert outcome.run.verification_ref == "verification.json"
     assert outcome.run.evidence_refs == ("greeting.txt",)
     assert outcome.run.condition_manifest.verifier_version == "0.1.0"
-    assert outcome.run.condition_manifest.runtime["isolation"] == "none"
-    assert outcome.run.condition_manifest.runtime["limits"] == "not_enforced"
+    assert outcome.run.condition_manifest.runtime["name"] == "bubblewrap"
+    assert outcome.run.condition_manifest.runtime["isolation"] == "namespaces"
+    assert outcome.run.condition_manifest.runtime["limits"] == "enforced"
     assert "created_at" in outcome.run.timestamps
     assert "finished_at" in outcome.run.timestamps
 
@@ -50,6 +60,9 @@ def test_successful_run_persists_verified_record(tmp_path: Path) -> None:
     verification = json.loads(store.read_artifact("run-0001", "verification.json"))
     assert verification["status"] == "passed"
     assert store.read_artifact("run-0001", "greeting.txt") == b"hello harnessbench\n"
+    trace = json.loads(store.read_artifact("run-0001", "runtime_trace.json"))
+    assert trace["status"] == "completed"
+    assert trace["policy"]["network_profile"] == "N0"
 
 
 def test_failed_verification_becomes_task_failure(tmp_path: Path) -> None:
@@ -147,3 +160,32 @@ def test_nested_example_task_runs_and_verifies(tmp_path: Path) -> None:
     assert outcome.verification is not None
     assert outcome.verification.status is VerificationStatus.PASSED
     assert "out/result.txt" in outcome.run.artifact_refs
+
+
+def test_run_applies_declared_initial_state(tmp_path: Path) -> None:
+    task_payload = json.loads(EXAMPLE_TASK_PATH.read_text(encoding="utf-8"))
+    task_payload["task_id"] = "example.initial-state.v1"
+    task_payload["initial_state"] = {"files": {"seed.txt": "seed\n"}}
+    task_payload["success_criteria"].insert(
+        0,
+        {
+            "criterion_id": "seed_preserved",
+            "kind": "content_equals",
+            "path": "seed.txt",
+            "expected": "seed\n",
+        },
+    )
+    task_path = tmp_path / "task.json"
+    task_path.write_text(json.dumps(task_payload), encoding="utf-8")
+
+    outcome = run_task(
+        task_path,
+        EXAMPLE_RESPONSE_PATH,
+        runs_root=tmp_path / "runs",
+        run_id="run-initial-state",
+    )
+
+    assert outcome.run.status is RunStatus.SUCCESS
+    assert outcome.verification is not None
+    assert outcome.verification.status is VerificationStatus.PASSED
+    assert "seed.txt" in outcome.run.artifact_refs

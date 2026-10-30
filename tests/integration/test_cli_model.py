@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,6 +14,11 @@ import pytest
 from harnessbench.cli.main import main
 from harnessbench.domain.run import RunStatus
 from harnessbench.storage.store import RunStore
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("bwrap") is None,
+    reason="bubblewrap is not installed",
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
@@ -58,13 +64,18 @@ def endpoint() -> Iterator[tuple[str, type[_Handler]]]:
         thread.join(timeout=2)
 
 
-def action_response(path: str, content: str) -> bytes:
+def action_response(
+    path: str,
+    content: str,
+    *,
+    response_id: str = "chatcmpl-test",
+) -> bytes:
     model_text = json.dumps(
         {"actions": [{"type": "write_file", "path": path, "content": content}]}
     )
     return json.dumps(
         {
-            "id": "chatcmpl-test",
+            "id": response_id,
             "choices": [
                 {
                     "message": {"role": "assistant", "content": model_text},
@@ -115,10 +126,13 @@ def test_run_model_task_cli_succeeds(
     assert run.condition_manifest.model["name"] == "mock-model"
     assert "model_response.txt" in run.artifact_refs
     assert "model_metadata.json" in run.artifact_refs
+    assert "runtime_trace.json" in run.artifact_refs
     assert store.read_artifact("run-model", "model_response.txt").startswith(b'{"actions"')
     metadata = json.loads(store.read_artifact("run-model", "model_metadata.json"))
     assert metadata["model"] == "mock-model"
     assert metadata["response_id"] == "chatcmpl-test"
+    trace = json.loads(store.read_artifact("run-model", "runtime_trace.json"))
+    assert trace["status"] == "completed"
 
     run_record = (tmp_path / "run-model" / "run.json").read_text(encoding="utf-8")
     assert "super-secret-key" not in run_record
@@ -129,6 +143,55 @@ def test_run_model_task_cli_succeeds(
     assert "JSON object" in prompt
     headers = {key.lower(): value for key, value in (handler.last_headers or {}).items()}
     assert headers["authorization"] == "Bearer super-secret-key"
+
+
+def test_run_model_task_redacts_secret_from_persisted_evidence(
+    tmp_path: Path,
+    endpoint: tuple[str, type[_Handler]],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url, handler = endpoint
+    handler.response_body = action_response(
+        "greeting.txt",
+        "hello harnessbench\n",
+        response_id="super-secret-key",
+    )
+    monkeypatch.setenv("TEST_MODEL_KEY", "super-secret-key")
+
+    exit_code = main(
+        [
+            "run-model-task",
+            str(EXAMPLE_TASK_PATH),
+            "--endpoint",
+            url,
+            "--model",
+            "mock-model",
+            "--api-key-env",
+            "TEST_MODEL_KEY",
+            "--runs-root",
+            str(tmp_path),
+            "--run-id",
+            "run-model-redacted",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.err == ""
+    store = RunStore(tmp_path)
+    run_record = (tmp_path / "run-model-redacted" / "run.json").read_text(encoding="utf-8")
+    assert "super-secret-key" not in run_record
+    for name in (
+        "model_response.txt",
+        "model_metadata.json",
+        "runtime_trace.json",
+        "verification.json",
+    ):
+        content = store.read_artifact("run-model-redacted", name)
+        assert b"super-secret-key" not in content
+    metadata = json.loads(store.read_artifact("run-model-redacted", "model_metadata.json"))
+    assert metadata["response_id"] == "[REDACTED]"
 
 
 def test_run_model_task_cli_reports_invalid_actions(

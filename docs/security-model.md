@@ -42,6 +42,13 @@ untrusted and parsed before file actions are applied.
 
 Current limits:
 
-- only N0 is implemented; N1/N2 requests return `policy_violation` instead of silently running with network;
-- the command harness routes execution through this runtime; the recorded-response and live-model file-action paths remain in-process;
-- routing the file-action paths through the runtime, general secret redaction, and separate verifier access remain open.
+- N0 uses a private network namespace with no egress; N2 shares the host network
+  namespace and therefore provides open egress without packet-level monitoring;
+- N1 controlled egress is not implemented. The default policy rejects N1 at
+  construction, and a policy that explicitly allows N1 returns
+  `policy_violation` rather than running without an allowlist;
+- the command harness routes execution through this runtime; the
+  recorded-response and live-model file-action paths remain in-process;
+- routing the file-action paths through the runtime, N1 allowlisting, N2
+  monitoring, general secret redaction, and separate verifier access remain
+  open.

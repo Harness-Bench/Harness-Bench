@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import shutil
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -18,6 +21,30 @@ pytestmark = pytest.mark.skipif(
     shutil.which("bwrap") is None,
     reason="bubblewrap is not installed",
 )
+
+
+class _GreetingHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"hello harnessbench\n")
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
+@pytest.fixture
+def http_endpoint() -> Iterator[str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _GreetingHandler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_TASK_PATH = ROOT / "benchmarks" / "examples" / "echo" / "task.json"
@@ -125,6 +152,38 @@ def test_command_network_is_blocked_offline(tmp_path: Path) -> None:
     store = RunStore(tmp_path)
     trace = json.loads(store.read_artifact("run-command-network", "runtime_trace.json"))
     assert "Network is unreachable" in trace["stderr"]
+
+
+def test_command_n2_profile_uses_host_network(
+    tmp_path: Path, http_endpoint: str
+) -> None:
+    code = (
+        "import urllib.request; "
+        f"open('greeting.txt', 'wb').write("
+        f"urllib.request.urlopen({http_endpoint!r}, timeout=2).read())"
+    )
+    outcome = run_command_task(
+        EXAMPLE_TASK_PATH,
+        ["python", "-c", code],
+        runs_root=tmp_path,
+        run_id="run-command-n2",
+        policy=ExecutionPolicy(network_profile="N2", timeout_seconds=5),
+    )
+
+    assert outcome.run.status is RunStatus.SUCCESS
+    assert outcome.runtime_result is not None
+    assert outcome.runtime_result.status is RuntimeStatus.COMPLETED
+    assert outcome.run.condition_manifest.network["profile"] == "N2"
+    assert outcome.run.condition_manifest.network["egress"] == "host_network"
+    assert outcome.run.condition_manifest.network["mechanism"] == (
+        "host_network_namespace"
+    )
+    assert outcome.run.condition_manifest.network["monitoring"] == "none"
+
+    store = RunStore(tmp_path)
+    trace = json.loads(store.read_artifact("run-command-n2", "runtime_trace.json"))
+    assert trace["policy"]["network_profile"] == "N2"
+    assert trace["policy"]["network_egress"] == "host_network"
 
 
 def test_command_artifacts_are_verified_task_failure(tmp_path: Path) -> None:

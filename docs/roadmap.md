@@ -40,7 +40,7 @@
 
 ## P3 — Isolated runtime
 
-**Status:** complete — see `tests/integration/test_isolated_runtime.py`.
+**Status:** complete for N0 and N2; N1 controlled egress remains open. See `tests/integration/test_isolated_runtime.py`.
 
 **Deliver:** environment setup/reset, resource limits, network enforcement, trace capture, cleanup and failure recovery.
 
@@ -51,7 +51,7 @@
 
 ## P4 — Validation and v0.1 release
 
-**Status:** fixture-baseline scope complete; the real-model and calibration gates remain open. See `release-report.md`.
+**Status:** fixture-baseline scope complete; live-model evaluation, N1 controlled egress, and calibration gates remain open. See `release-report.md`.
 
 **Deliver:** contract/integration/reproducibility tests, example benchmark pack, documented limitations, release report.
 

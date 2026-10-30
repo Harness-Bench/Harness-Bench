@@ -32,6 +32,9 @@ class RuntimeSetupError(Exception):
     """The runtime workspace or initial state could not be prepared."""
 
 
+SUPPORTED_NETWORK_PROFILES = frozenset({"N0", "N2"})
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutionPolicy:
     """Declared limits and network policy for one execution."""
@@ -43,7 +46,7 @@ class ExecutionPolicy:
     max_file_size_mb: int = 16
     network_profile: str = "N0"
     allowed_network_profiles: frozenset[str] = field(
-        default_factory=lambda: frozenset({"N0"})
+        default_factory=lambda: frozenset({"N0", "N2"})
     )
     max_output_chars: int = 100_000
 
@@ -55,9 +58,44 @@ class ExecutionPolicy:
                 raise ValueError(f"{name} must be positive")
         if self.network_profile not in self.allowed_network_profiles:
             raise ValueError(
-                f"unsupported network profile: {self.network_profile}; "
+                f"network profile {self.network_profile} is not allowed; "
                 f"allowed: {sorted(self.allowed_network_profiles)}"
             )
+
+    @property
+    def network_supported(self) -> bool:
+        return self.network_profile in SUPPORTED_NETWORK_PROFILES
+
+    @property
+    def network_egress(self) -> str:
+        if self.network_profile == "N0":
+            return "blocked"
+        if self.network_profile == "N2":
+            return "host_network"
+        return "unsupported"
+
+    @property
+    def network_mechanism(self) -> str:
+        if self.network_profile == "N0":
+            return "network_namespace"
+        if self.network_profile == "N2":
+            return "host_network_namespace"
+        return "none"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a serializable policy snapshot for traces and manifests."""
+        return {
+            "timeout_seconds": self.timeout_seconds,
+            "cpu_seconds": self.cpu_seconds,
+            "memory_mb": self.memory_mb,
+            "max_processes": self.max_processes,
+            "max_file_size_mb": self.max_file_size_mb,
+            "network_profile": self.network_profile,
+            "allowed_network_profiles": sorted(self.allowed_network_profiles),
+            "network_egress": self.network_egress,
+            "network_mechanism": self.network_mechanism,
+            "max_output_chars": self.max_output_chars,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +109,7 @@ class RuntimeResult:
     stdout: str
     stderr: str
     network_profile: str
+    policy: Mapping[str, Any] = field(default_factory=dict)
     detail: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -82,6 +121,7 @@ class RuntimeResult:
             "stdout": self.stdout,
             "stderr": self.stderr,
             "network_profile": self.network_profile,
+            "policy": dict(self.policy),
         }
         if self.detail is not None:
             data["detail"] = self.detail
@@ -259,12 +299,15 @@ class IsolatedRuntime:
         """Execute a command in the prepared workspace and capture its trace."""
         active = policy or self.policy
         command_tuple = tuple(command)
-        if active.network_profile != "N0":
+        if not active.network_supported:
             return self._result(
                 RuntimeStatus.POLICY_VIOLATION,
                 command_tuple,
                 active,
-                detail=f"runtime does not support network profile {active.network_profile}",
+                detail=(
+                    f"runtime does not support network profile {active.network_profile}; "
+                    "N1 controlled egress requires an allowlist mechanism"
+                ),
             )
         if self.workspace is None or not self.workspace.is_dir():
             return self._result(
@@ -329,6 +372,7 @@ class IsolatedRuntime:
             stdout=stdout,
             stderr=stderr,
             network_profile=active.network_profile,
+            policy=active.to_dict(),
             detail=detail,
         )
 
@@ -365,5 +409,6 @@ class IsolatedRuntime:
             stdout="",
             stderr="",
             network_profile=policy.network_profile,
+            policy=policy.to_dict(),
             detail=detail,
         )

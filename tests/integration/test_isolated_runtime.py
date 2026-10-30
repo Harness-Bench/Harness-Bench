@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import shutil
+import threading
 import time
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -18,6 +21,30 @@ pytestmark = pytest.mark.skipif(
     shutil.which("bwrap") is None,
     reason="bubblewrap is not installed",
 )
+
+
+class _GreetingHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"n2-ok")
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
+@pytest.fixture
+def http_endpoint() -> Iterator[str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _GreetingHandler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_executes_in_workspace_and_captures_trace() -> None:
@@ -92,7 +119,8 @@ def test_unsupported_network_policy_is_a_policy_violation() -> None:
         result = runtime.execute(["sh", "-c", "true"])
 
         assert result.status is RuntimeStatus.POLICY_VIOLATION
-        assert "does not support network profile" in (result.detail or "")
+        assert "N1 controlled egress" in (result.detail or "")
+        assert result.policy["network_egress"] == "unsupported"
 
 
 def test_network_is_blocked_offline() -> None:
@@ -109,6 +137,41 @@ def test_network_is_blocked_offline() -> None:
 
         assert result.status is RuntimeStatus.EXECUTION_FAILED
         assert "Network is unreachable" in result.stderr
+
+
+def test_n2_profile_uses_host_network(http_endpoint: str) -> None:
+    policy = ExecutionPolicy(network_profile="N2", timeout_seconds=5)
+    code = (
+        "import urllib.request; "
+        f"print(urllib.request.urlopen({http_endpoint!r}, timeout=2).read().decode())"
+    )
+    with IsolatedRuntime(policy) as runtime:
+        runtime.prepare()
+
+        result = runtime.execute(["python", "-c", code])
+
+        assert result.status is RuntimeStatus.COMPLETED
+        assert result.stdout == "n2-ok\n"
+        assert result.policy["network_profile"] == "N2"
+        assert result.policy["network_egress"] == "host_network"
+        assert result.policy["network_mechanism"] == "host_network_namespace"
+
+
+def test_n1_is_rejected_by_default() -> None:
+    with pytest.raises(ValueError, match="network profile N1 is not allowed"):
+        ExecutionPolicy(network_profile="N1")
+
+
+def test_trace_includes_policy_limits() -> None:
+    policy = ExecutionPolicy(timeout_seconds=5, memory_mb=256)
+    with IsolatedRuntime(policy) as runtime:
+        runtime.prepare()
+
+        result = runtime.execute(["sh", "-c", "true"])
+
+        assert result.to_dict()["policy"]["timeout_seconds"] == 5
+        assert result.to_dict()["policy"]["memory_mb"] == 256
+        assert result.to_dict()["policy"]["network_egress"] == "blocked"
 
 
 def test_writes_outside_workspace_are_blocked() -> None:

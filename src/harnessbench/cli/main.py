@@ -93,7 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--experiment-id", default=DEFAULT_EXPERIMENT_ID)
     command.add_argument("--timeout", type=float, default=30.0)
     command.add_argument("--memory-mb", type=int, default=512)
-    command.add_argument("--network-profile", default="N0")
+    command.add_argument(
+        "--network-profile",
+        default="N0",
+        help="network policy: N0 offline or N2 host network; N1 is rejected",
+    )
 
     model_task = commands.add_parser(
         "run-model-task",

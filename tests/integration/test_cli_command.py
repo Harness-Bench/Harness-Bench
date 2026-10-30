@@ -85,6 +85,30 @@ def test_run_command_cli_rejects_invalid_command(
     assert "invalid command" in captured.err
 
 
+def test_run_command_cli_rejects_n1_by_default(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main(
+        [
+            "run-command",
+            str(EXAMPLE_TASK_PATH),
+            "--command",
+            "sh -c 'true'",
+            "--network-profile",
+            "N1",
+            "--runs-root",
+            str(tmp_path),
+            "--run-id",
+            "run-command-n1",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "network profile N1 is not allowed" in captured.err
+    assert not (tmp_path / "run-command-n1").exists()
+
+
 def test_show_run_includes_runtime_trace_artifact(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

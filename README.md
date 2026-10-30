@@ -52,7 +52,8 @@ harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.js
 
 The recorded-response and live-model file-action paths run in-process and are
 not isolation boundaries. The command path runs inside the bubblewrap runtime
-with resource limits, offline network policy, trace capture, and cleanup.
+with resource limits, N0 offline or N2 host-network policy, trace capture, and
+cleanup. N1 controlled egress is not implemented and fails closed.
 `run-model-task` calls an OpenAI-compatible chat-completions endpoint; no
 provider credentials or real-model result are included in this repository.
 End-to-end file-action sandboxing is not implemented.
@@ -93,7 +94,7 @@ End-to-end file-action sandboxing is not implemented.
 
 ## Status
 
-The repository has a **v0.1 fixture-baseline release**: P1/P2/P3 slices, a second example task, reproducibility checks, and an isolated command-execution path. See [`docs/release-report.md`](docs/release-report.md) for evidence and limitations. This is not a real-model benchmark result; the real-model and calibration gates remain open.
+The repository has a **v0.1 fixture-baseline release**: P1/P2/P3 slices, a second example task, reproducibility checks, and an isolated command-execution path. See [`docs/release-report.md`](docs/release-report.md) for evidence and limitations. This is not a real-model benchmark result; the real-model, N1 controlled-egress, and calibration gates remain open.
 
 ## Start here
 

@@ -64,7 +64,11 @@ def _build_manifest(
         environment={"profile": task.environment_level, "workspace": "temporary"},
         network={
             "profile": policy.network_profile,
-            "egress": "blocked" if policy.network_profile == "N0" else "unsupported",
+            "egress": policy.network_egress,
+            "mechanism": policy.network_mechanism,
+            "monitoring": (
+                "not_applicable" if policy.network_profile == "N0" else "none"
+            ),
         },
         budgets={
             "wall_seconds": policy.timeout_seconds,

@@ -17,7 +17,8 @@ This release covers the P1–P3 roadmap slices:
 - independent file verification and a synthetic verifier-calibration pack;
 - matched-comparison and ablation analysis with repeated runs and Wilson intervals;
 - a bubblewrap-backed isolated runtime with resource limits, N0 network
-  enforcement, trace capture, workspace reset, and cleanup.
+  isolation, N2 host-network policy, trace capture, workspace reset, and
+  cleanup.
 
 The example pack contains two synthetic tasks: `echo` and `nested-write`.
 The `echo` experiment compares a baseline harness with an
@@ -39,10 +40,10 @@ harnessbench run-command benchmarks/examples/echo/task.json \
 harnessbench calibrate-verifier benchmarks/examples/verifier-calibration/pack.json
 ```
 
-At release preparation: 118 tests passed, lint passed, documentation checks
+At release preparation: 123 tests passed, lint passed, documentation checks
 passed, the CLI smoke path produced a persisted `success` run plus a matched
-ablation report, the isolated command path produced a verified run with a
-runtime trace, the synthetic calibration pack reported zero false
+ablation report, the isolated command path produced verified runs with N0 and
+N2 network policies, the synthetic calibration pack reported zero false
 acceptances/rejections, and the live-model path was exercised against a local
 mock chat-completions server.
 
@@ -68,8 +69,9 @@ harness effectiveness, or leaderboard ranking.
 - The file-action harness runs in-process. The command harness runs inside the
   isolated runtime, but neither the recorded-response nor live-model
   file-action path is sandboxed.
-- Only N0 offline network policy is implemented. N1/N2 requests fail closed
-  with `policy_violation`.
+- N0 offline and N2 host-network policies are implemented. N1 controlled egress
+  is not; it fails closed at policy construction or with `policy_violation` when
+  explicitly allowed. N2 provides open host-network access without monitoring.
 - The example pack is synthetic and tiny; it is not representative of coding,
   cybersecurity, or multilingual benchmark coverage.
 - Verifier calibration against adjudicated real-task cases is not established;

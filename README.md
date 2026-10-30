@@ -11,6 +11,7 @@ HarnessBench is a local-first evaluation framework for measuring model–harness
 - `docs/evaluation-model.md` — domains D1–D13 and independent B/E/N/H axes.
 - `docs/multilingual-semantic-integrity.md` — first-class cross-lingual meaning-preservation evaluation.
 - `docs/experimental-design.md` — matched comparisons, ablation, uncertainty, and language-path experiments.
+- `docs/documentation.md` — docs-alongside-code layers, status labels, and maintenance rules.
 - `docs/runtime-contract.md` — adapter/runtime/verifier boundaries and run status contract.
 - `docs/validity-and-contamination.md` — benchmark validity and contamination limits.
 - `docs/final-audit.md` — audit decisions, addressed gaps, remaining implementation gates.
@@ -44,6 +45,7 @@ The repository is a **foundation scaffold**, not a working benchmark runner yet.
 
 - `docs/vision.md` — mission, scope, and non-goals.
 - `docs/architecture.md` — component boundaries and data flow.
+- `docs/documentation.md` — documentation placement and update rules.
 - `docs/evaluation-model.md` — evaluation axes and terminology.
 - `docs/experimental-design.md` — fair comparison and mechanism analysis.
 - `docs/security-model.md` — runtime isolation and threat boundaries.
@@ -64,3 +66,4 @@ This archive is a **repository foundation**, not a working benchmark implementat
 2. Read `docs/evaluation-model.md` and `docs/experimental-design.md`.
 3. Follow `docs/roadmap.md` in order.
 4. Record consequential design changes in `docs/decisions/`.
+5. Run `python scripts/check_docs.py` after changing package boundaries or documentation.

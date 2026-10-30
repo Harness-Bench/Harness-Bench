@@ -9,6 +9,7 @@
 - [Runtime & Adapter Contracts](runtime-contract.md)
 - [Validity, Contamination & Difficulty](validity-and-contamination.md)
 - [Architecture](architecture.md)
+- [Documentation Alongside Code](documentation.md)
 - [Security Model](security-model.md)
 - [Roadmap](roadmap.md)
 - [Foundation Final Audit](final-audit.md)
